@@ -1916,7 +1916,7 @@ class SalarySlip(TransactionBase):
 		if not any(compon.salary_component == salary_structure_.custom_overtime_salary_component for compon in self.earnings):
 			self.append("earnings", {
 				"salary_component": salary_structure_.custom_overtime_salary_component,
-				"amount": self.custom_overtime_hour_rate * overtime_summary_.previous_shift_hours
+				"amount": self.custom_previous_overtime_hours_rate * overtime_summary_.previous_shift_hours
 			})
 		if not any(compon.salary_component == salary_structure_.custom_holiday_overtime_salary_component for compon in self.earnings):
 			self.append("earnings", {
@@ -2330,10 +2330,14 @@ def get_overtime_summary(employee_name, timesheets):
 		SUM(
 			IF(h.holiday_date IS NOT NULL AND e.holiday_list = h.parent, 0,
 				ABS(
-					TIMESTAMPDIFF(SECOND,
-						GREATEST(td.from_time, CONCAT(DATE(td.from_time), ' ', st.start_time)),
-						LEAST(td.to_time, CONCAT(DATE(td.from_time), ' ', st.end_time))
-					) / 3600
+					CASE
+						WHEN TIME(td.from_time) >= st.start_time THEN
+							TIMESTAMPDIFF(SECOND,
+							GREATEST(td.from_time, CONCAT(DATE(td.from_time), ' ', st.start_time)),
+							LEAST(td.to_time, CONCAT(DATE(td.from_time), ' ', st.end_time))
+						) / 3600
+					ELSE 0
+				END
 				)
 			)
 		) AS shift_hours,
