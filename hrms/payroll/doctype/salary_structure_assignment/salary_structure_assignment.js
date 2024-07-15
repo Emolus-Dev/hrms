@@ -103,24 +103,28 @@ frappe.ui.form.on('Salary Structure Assignment', {
 	},
 
 	valiadte_joining_date_and_salary_slips: function(frm) {
-		frappe.call({
-			method: "earning_and_deduction_entries_does_not_exists",
-			doc: frm.doc,
-			callback: function(data) {
-				let earning_and_deduction_entries_does_not_exists = data.message;
-				frm.unhide_earnings_and_taxation_section = earning_and_deduction_entries_does_not_exists;
-				frm.trigger("set_earnings_and_taxation_section_visibility");
-			}
-		});
+		// frappe.call({
+		// 	method: "earning_and_deduction_entries_does_not_exists",
+		// 	doc: frm.doc,
+		// 	callback: function(data) {
+		// 		console.log('debug', data.message)
+		// 		let earning_and_deduction_entries_does_not_exists = data.message;
+		// 		frm.unhide_earnings_and_taxation_section = earning_and_deduction_entries_does_not_exists;
+		// 		frm.trigger("set_earnings_and_taxation_section_visibility");
+		// 	}
+		// });
+		// frm.unhide_earnings_and_taxation_section = true;
+		// frm.trigger("set_earnings_and_taxation_section_visibility");
+		frm.set_df_property('earnings_and_taxation_section', 'hidden', 0);
 	},
 
 	set_earnings_and_taxation_section_visibility: function(frm) {
-		if(frm.unhide_earnings_and_taxation_section){
+		// if(frm.unhide_earnings_and_taxation_section){
 			frm.set_df_property('earnings_and_taxation_section', 'hidden', 0);
-		}
-		else{
-			frm.set_df_property('earnings_and_taxation_section', 'hidden', 1);
-		}
+		// }
+		// else{
+		// 	frm.set_df_property('earnings_and_taxation_section', 'hidden', 1);
+		// }
 	},
 
 	from_date: function(frm) {
