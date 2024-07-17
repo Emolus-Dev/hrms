@@ -5,7 +5,11 @@
 import unicodedata
 from datetime import date
 
+import erpnext
 import frappe
+from erpnext.accounts.utils import get_fiscal_year
+from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
+from erpnext.utilities.transaction_base import TransactionBase
 from frappe import _, msgprint
 from frappe.model.naming import make_autoname
 from frappe.query_builder import Order
@@ -27,13 +31,10 @@ from frappe.utils import (
 )
 from frappe.utils.background_jobs import enqueue
 
-import erpnext
-from erpnext.accounts.utils import get_fiscal_year
-from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
-from erpnext.utilities.transaction_base import TransactionBase
-
 from hrms.hr.utils import validate_active_employee
-from hrms.payroll.doctype.additional_salary.additional_salary import get_additional_salaries
+from hrms.payroll.doctype.additional_salary.additional_salary import (
+	get_additional_salaries,
+)
 from hrms.payroll.doctype.employee_benefit_application.employee_benefit_application import (
 	get_benefit_component_amount,
 )
@@ -131,6 +132,7 @@ class SalarySlip(TransactionBase):
 		return self.__actual_end_date
 
 	def validate(self):
+		self.extraordinary_payroll = self.get_extraordinary_payroll()
 		self.status = self.get_status()
 		validate_active_employee(self.employee)
 		self.validate_dates()
@@ -183,7 +185,8 @@ class SalarySlip(TransactionBase):
 			self.set_status()
 			self.update_status(self.name)
 
-			make_loan_repayment_entry(self)
+			if not self.extraordinary_payroll:
+				make_loan_repayment_entry(self)
 
 			if not frappe.flags.via_payroll_entry and not frappe.flags.in_patch:
 				email_salary_slip = cint(
@@ -216,8 +219,8 @@ class SalarySlip(TransactionBase):
 		self.set_status()
 		self.update_status()
 		self.update_payment_status_for_gratuity()
-
-		cancel_loan_repayment_entry(self)
+		if not self.extraordinary_payroll:
+			cancel_loan_repayment_entry(self)
 		self.publish_update()
 
 	def publish_update(self):
@@ -384,7 +387,9 @@ class SalarySlip(TransactionBase):
 			)
 
 	def pull_sal_struct(self):
-		from hrms.payroll.doctype.salary_structure.salary_structure import make_salary_slip
+		from hrms.payroll.doctype.salary_structure.salary_structure import (
+			make_salary_slip,
+		)
 
 		if self.salary_slip_based_on_timesheet:
 			self.salary_structure = self._salary_structure_doc.name
@@ -778,7 +783,8 @@ class SalarySlip(TransactionBase):
 		if self.salary_structure:
 			self.calculate_component_amounts("deductions")
 
-		set_loan_repayment(self)
+		if not self.extraordinary_payroll:
+			set_loan_repayment(self)
 
 		self.set_precision_for_component_amounts()
 		self.set_net_pay()
@@ -1069,17 +1075,61 @@ class SalarySlip(TransactionBase):
 		return tax_deducted
 
 	def calculate_component_amounts(self, component_type):
+		"""Agrega los componentes earnings o deductions a la tabla hija"""
 		if not getattr(self, "_salary_structure_doc", None):
 			self._salary_structure_doc = frappe.get_cached_doc("Salary Structure", self.salary_structure)
 
-		self.add_structure_components(component_type)
+		frappe.log_error("_salary_structure_doc", self._salary_structure_doc)
+
+		# Puede ser Bono 14 o Aguinaldo
+		extraordinary_payroll = self.get_extraordinary_payroll()
+		custom_components = frappe.db.get_value("Salary Structure", self.salary_structure,
+										["custom_fel_bonus_salary_component",
+										"custom_cs_pago_bonificacion_anual",
+										"custom_cs_pago_aguinaldo"], as_dict=True)
+
+		if extraordinary_payroll == "Bono 14":
+			self._salary_structure_doc.earnings = [
+				frappe._dict({
+					"salary_component": custom_components.custom_cs_pago_bonificacion_anual,
+					"abbr": frappe.db.get_value("Salary Component", custom_components.custom_cs_pago_bonificacion_anual, "salary_component_abbr"),
+					"amount": 0,
+					"year_to_date": 0,
+					"is_recurring_additional_salary": 0,
+					"statistical_component": 0,
+					"depends_on_payment_days": 1,
+					"exempted_from_income_tax": 0,
+					"is_tax_applicable": 1,
+					"is_flexible_benefit": 0,
+					"variable_based_on_taxable_salary": 0,
+					"do_not_include_in_total": 0,
+					"deduct_full_tax_on_selected_payroll_date": 0,
+					"condition": "",
+					"amount_based_on_formula": 1,
+					"formula": "1",
+					"default_amount": 0,
+					"additional_amount": 0,
+					"tax_on_flexible_benefit": 0,
+					"tax_on_additional_salary": 0,
+					"parent": self._salary_structure_doc.name,
+					"parentfield": "earnings",
+					"parenttype": "Salary Structure",
+					"doctype": "Salary Detail"
+				})
+			]
+			self._salary_structure_doc.deductions = [ ]
+
+		# Puede ser Bono 14 o Aguinaldo
+		extraordinary_payroll = self.get_extraordinary_payroll()
+
+		self.add_structure_components(component_type, extraordinary_payroll)
 		self.add_additional_salary_components(component_type)
 		if component_type == "earnings":
 			self.add_employee_benefits()
 		else:
 			self.add_tax_components()
 
-	def add_structure_components(self, component_type):
+	def add_structure_components(self, component_type, extraordinary_payroll):
 		self.data, self.default_data = self.get_data_for_eval()
 		timesheet_component = self._salary_structure_doc.salary_component
 
@@ -1147,6 +1197,46 @@ class SalarySlip(TransactionBase):
 				default_data[d.abbr] = d.default_amount or 0
 				data[d.abbr] = d.amount or 0
 
+		# Puede ser Bono 14 o Aguinaldo
+		extraordinary_payroll = self.get_extraordinary_payroll()
+		custom_components = frappe.db.get_value("Salary Structure", self.salary_structure,
+										["custom_fel_bonus_salary_component",
+										"custom_cs_pago_bonificacion_anual",
+										"custom_cs_pago_aguinaldo"], as_dict=True)
+
+		if extraordinary_payroll == "Bono 14":
+			data.update({
+				"earnings": [ ],
+			})
+			data.update({
+				"earnings": [{
+					"salary_component": custom_components.custom_cs_pago_bonificacion_anual,
+					"abbr": frappe.db.get_value("Salary Component", custom_components.custom_cs_pago_bonificacion_anual, "salary_component_abbr"),
+					"amount": 0,
+				}],
+			})
+   
+			default_data.update({
+				"earnings": [ ],
+			})
+			default_data.update({
+				"earnings": [{
+					"salary_component": custom_components.custom_cs_pago_bonificacion_anual,
+					"abbr": frappe.db.get_value("Salary Component", custom_components.custom_cs_pago_bonificacion_anual, "salary_component_abbr"),
+					"amount": 0,
+				}],
+			})
+
+			data.update({
+				"deductions": [ ],
+			})
+			default_data.update({
+				"deductions": [ ],
+			})
+
+		if extraordinary_payroll == "Aguinaldo":
+			pass
+
 		return data, default_data
 
 	def get_component_abbr_map(self):
@@ -1160,6 +1250,11 @@ class SalarySlip(TransactionBase):
 
 	def eval_condition_and_formula(self, struct_row, data):
 		try:
+			extraordinary_payroll = self.get_extraordinary_payroll()
+			if extraordinary_payroll:
+				# self.loans = []
+				return
+
 			condition = sanitize_expression(struct_row.condition)
 			if condition:
 				if not _safe_eval(condition, self.whitelisted_globals, data):
@@ -1296,9 +1391,9 @@ class SalarySlip(TransactionBase):
 	def get_tax_components(self) -> list:
 		"""
 		Returns:
-		        list: A list of tax components specific to the company.
-		        If no tax components are defined for the company,
-		        it returns the default tax components.
+				list: A list of tax components specific to the company.
+				If no tax components are defined for the company,
+				it returns the default tax components.
 		"""
 		tax_components = frappe.cache().get_value(
 			TAX_COMPONENTS_BY_COMPANY, self._fetch_tax_components_by_company
@@ -1310,10 +1405,10 @@ class SalarySlip(TransactionBase):
 	def _fetch_tax_components_by_company(self) -> dict:
 		"""
 		Returns:
-		    dict: A dictionary containing tax components grouped by company.
+			dict: A dictionary containing tax components grouped by company.
 
 		Raises:
-		    None
+			None
 		"""
 
 		tax_components = {}
@@ -2045,7 +2140,9 @@ class SalarySlip(TransactionBase):
 		self.set("leave_details", [])
 
 		if frappe.db.get_single_value("Payroll Settings", "show_leave_balances_in_salary_slip"):
-			from hrms.hr.doctype.leave_application.leave_application import get_leave_details
+			from hrms.hr.doctype.leave_application.leave_application import (
+				get_leave_details,
+			)
 
 			leave_details = get_leave_details(self.employee, self.end_date)
 
@@ -2061,6 +2158,13 @@ class SalarySlip(TransactionBase):
 						"available_leaves": flt(leave_values.get("remaining_leaves")),
 					},
 				)
+
+	def get_extraordinary_payroll(self):
+		if self.payroll_entry:
+			extraordinary_payroll = frappe.db.get_value("Payroll Entry", self.payroll_entry, "custom_extraordinary_payroll")
+			return extraordinary_payroll
+
+		return None
 
 
 def unlink_ref_doc_from_salary_slip(doc, method=None):
