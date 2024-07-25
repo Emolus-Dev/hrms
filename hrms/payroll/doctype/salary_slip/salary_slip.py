@@ -149,6 +149,22 @@ class SalarySlip(TransactionBase):
 
 		self.set_salary_structure_assignment()
 		self.calculate_net_pay()
+
+		# Puede ser Bono 14 o Aguinaldo
+		if self.extraordinary_payroll == "Bono 14":
+			self._salary_structure_doc.deductions = []
+			self._salary_structure_doc.earnings = []
+
+		custom_components = frappe.db.get_value("Salary Structure", self.salary_structure,
+										["custom_fel_bonus_salary_component",
+										"custom_cs_pago_bonificacion_anual",
+										"custom_cs_pago_aguinaldo"], as_dict=True)
+		self.append("earnings", {
+			"salary_component": custom_components.custom_cs_pago_bonificacion_anual,
+			"abbr": frappe.db.get_value("Salary Component", custom_components.custom_cs_pago_bonificacion_anual, "salary_component_abbr"),
+			"amount": 0,}
+		)
+
 		self.compute_year_to_date()
 		self.compute_month_to_date()
 		self.compute_component_wise_year_to_date()
@@ -166,6 +182,9 @@ class SalarySlip(TransactionBase):
 					),
 					alert=True,
 				)
+		# Puede ser Bono 14 o Aguinaldo
+		if self.extraordinary_payroll:
+			self._salary_structure_doc.deductions = []
 
 	def set_net_total_in_words(self):
 		doc_currency = self.currency
@@ -216,6 +235,8 @@ class SalarySlip(TransactionBase):
 				frappe.db.set_value("Gratuity", additional_salary[0].ref_docname, "status", status)
 
 	def on_cancel(self):
+		self.extraordinary_payroll = self.get_extraordinary_payroll()
+
 		self.set_status()
 		self.update_status()
 		self.update_payment_status_for_gratuity()
@@ -1079,57 +1100,19 @@ class SalarySlip(TransactionBase):
 		if not getattr(self, "_salary_structure_doc", None):
 			self._salary_structure_doc = frappe.get_cached_doc("Salary Structure", self.salary_structure)
 
-		frappe.log_error("_salary_structure_doc", self._salary_structure_doc)
-
-		# Puede ser Bono 14 o Aguinaldo
-		extraordinary_payroll = self.get_extraordinary_payroll()
-		custom_components = frappe.db.get_value("Salary Structure", self.salary_structure,
-										["custom_fel_bonus_salary_component",
-										"custom_cs_pago_bonificacion_anual",
-										"custom_cs_pago_aguinaldo"], as_dict=True)
-
-		if extraordinary_payroll == "Bono 14":
-			self._salary_structure_doc.earnings = [
-				frappe._dict({
-					"salary_component": custom_components.custom_cs_pago_bonificacion_anual,
-					"abbr": frappe.db.get_value("Salary Component", custom_components.custom_cs_pago_bonificacion_anual, "salary_component_abbr"),
-					"amount": 0,
-					"year_to_date": 0,
-					"is_recurring_additional_salary": 0,
-					"statistical_component": 0,
-					"depends_on_payment_days": 1,
-					"exempted_from_income_tax": 0,
-					"is_tax_applicable": 1,
-					"is_flexible_benefit": 0,
-					"variable_based_on_taxable_salary": 0,
-					"do_not_include_in_total": 0,
-					"deduct_full_tax_on_selected_payroll_date": 0,
-					"condition": "",
-					"amount_based_on_formula": 1,
-					"formula": "1",
-					"default_amount": 0,
-					"additional_amount": 0,
-					"tax_on_flexible_benefit": 0,
-					"tax_on_additional_salary": 0,
-					"parent": self._salary_structure_doc.name,
-					"parentfield": "earnings",
-					"parenttype": "Salary Structure",
-					"doctype": "Salary Detail"
-				})
-			]
-			self._salary_structure_doc.deductions = [ ]
-
-		# Puede ser Bono 14 o Aguinaldo
-		extraordinary_payroll = self.get_extraordinary_payroll()
-
-		self.add_structure_components(component_type, extraordinary_payroll)
+		self.add_structure_components(component_type)
 		self.add_additional_salary_components(component_type)
 		if component_type == "earnings":
 			self.add_employee_benefits()
 		else:
 			self.add_tax_components()
 
-	def add_structure_components(self, component_type, extraordinary_payroll):
+		# Puede ser Bono 14 o Aguinaldo
+		if self.extraordinary_payroll == "Bono 14":
+			self._salary_structure_doc.deductions = []
+			self._salary_structure_doc.earnings = []
+
+	def add_structure_components(self, component_type):
 		self.data, self.default_data = self.get_data_for_eval()
 		timesheet_component = self._salary_structure_doc.salary_component
 
@@ -1350,6 +1333,9 @@ class SalarySlip(TransactionBase):
 			)
 
 	def add_tax_components(self):
+		if self.extraordinary_payroll:
+			return
+
 		# Calculate variable_based_on_taxable_salary after all components updated in salary slip
 		tax_components, self.other_deduction_components = [], []
 		for d in self._salary_structure_doc.get("deductions"):
