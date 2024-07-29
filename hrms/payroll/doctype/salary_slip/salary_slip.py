@@ -150,21 +150,6 @@ class SalarySlip(TransactionBase):
 		self.set_salary_structure_assignment()
 		self.calculate_net_pay()
 
-		# Puede ser Bono 14 o Aguinaldo
-		if self.extraordinary_payroll == "Bono 14":
-			self._salary_structure_doc.deductions = []
-			self._salary_structure_doc.earnings = []
-
-		custom_components = frappe.db.get_value("Salary Structure", self.salary_structure,
-										["custom_fel_bonus_salary_component",
-										"custom_cs_pago_bonificacion_anual",
-										"custom_cs_pago_aguinaldo"], as_dict=True)
-		self.append("earnings", {
-			"salary_component": custom_components.custom_cs_pago_bonificacion_anual,
-			"abbr": frappe.db.get_value("Salary Component", custom_components.custom_cs_pago_bonificacion_anual, "salary_component_abbr"),
-			"amount": 0,}
-		)
-
 		self.compute_year_to_date()
 		self.compute_month_to_date()
 		self.compute_component_wise_year_to_date()
@@ -182,9 +167,6 @@ class SalarySlip(TransactionBase):
 					),
 					alert=True,
 				)
-		# Puede ser Bono 14 o Aguinaldo
-		if self.extraordinary_payroll:
-			self._salary_structure_doc.deductions = []
 
 	def set_net_total_in_words(self):
 		doc_currency = self.currency
@@ -1107,11 +1089,6 @@ class SalarySlip(TransactionBase):
 		else:
 			self.add_tax_components()
 
-		# Puede ser Bono 14 o Aguinaldo
-		if self.extraordinary_payroll == "Bono 14":
-			self._salary_structure_doc.deductions = []
-			self._salary_structure_doc.earnings = []
-
 	def add_structure_components(self, component_type):
 		self.data, self.default_data = self.get_data_for_eval()
 		timesheet_component = self._salary_structure_doc.salary_component
@@ -1179,46 +1156,6 @@ class SalarySlip(TransactionBase):
 			for d in self.get(key):
 				default_data[d.abbr] = d.default_amount or 0
 				data[d.abbr] = d.amount or 0
-
-		# Puede ser Bono 14 o Aguinaldo
-		extraordinary_payroll = self.get_extraordinary_payroll()
-		custom_components = frappe.db.get_value("Salary Structure", self.salary_structure,
-										["custom_fel_bonus_salary_component",
-										"custom_cs_pago_bonificacion_anual",
-										"custom_cs_pago_aguinaldo"], as_dict=True)
-
-		if extraordinary_payroll == "Bono 14":
-			data.update({
-				"earnings": [ ],
-			})
-			data.update({
-				"earnings": [{
-					"salary_component": custom_components.custom_cs_pago_bonificacion_anual,
-					"abbr": frappe.db.get_value("Salary Component", custom_components.custom_cs_pago_bonificacion_anual, "salary_component_abbr"),
-					"amount": 0,
-				}],
-			})
-   
-			default_data.update({
-				"earnings": [ ],
-			})
-			default_data.update({
-				"earnings": [{
-					"salary_component": custom_components.custom_cs_pago_bonificacion_anual,
-					"abbr": frappe.db.get_value("Salary Component", custom_components.custom_cs_pago_bonificacion_anual, "salary_component_abbr"),
-					"amount": 0,
-				}],
-			})
-
-			data.update({
-				"deductions": [ ],
-			})
-			default_data.update({
-				"deductions": [ ],
-			})
-
-		if extraordinary_payroll == "Aguinaldo":
-			pass
 
 		return data, default_data
 
