@@ -77,7 +77,7 @@ def execute(filters=None):
 			row = {
 				"payroll_no": salary.payroll_entry,
 				"debit_account": salary.debit_acc_no,
-				"payment_date": frappe.utils.formatdate(salary.modified.strftime("%Y-%m-%d")),
+				"payment_date": frappe.utils.formatdate(salary.posting_date.strftime("%Y-%m-%d")),
 				"bank_name": salary.bank_name,
 				"employee_account_no": salary.bank_account_no,
 				"bank_code": salary.ifsc_code,
@@ -102,10 +102,10 @@ def get_payroll_entries(accounts, filters):
 		("Company", "=", filters.company),
 	]
 	if filters.to_date:
-		payroll_filter.append(("posting_date", "<", filters.to_date))
+		payroll_filter.append(("posting_date", "<=", filters.to_date))
 
 	if filters.from_date:
-		payroll_filter.append(("posting_date", ">", filters.from_date))
+		payroll_filter.append(("posting_date", ">=", filters.from_date))
 
 	entries = get_all("Payroll Entry", payroll_filter, ["name", "payment_account"])
 
@@ -121,6 +121,7 @@ def get_salary_slips(payroll_entries):
 		filters=[("payroll_entry", "IN", payroll)],
 		fields=[
 			"modified",
+			"posting_date",
 			"net_pay",
 			"bank_name",
 			"bank_account_no",
