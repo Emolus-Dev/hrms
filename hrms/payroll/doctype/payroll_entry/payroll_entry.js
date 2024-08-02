@@ -338,6 +338,9 @@ frappe.ui.form.on("Payroll Entry", {
 	},
 
 	set_start_end_dates: function (frm) {
+		if (frm.doc.custom_extraordinary_payroll){
+			return;
+		}
 		if (!frm.doc.salary_slip_based_on_timesheet) {
 			frappe.call({
 				method: "hrms.payroll.doctype.payroll_entry.payroll_entry.get_start_end_dates",
@@ -357,6 +360,9 @@ frappe.ui.form.on("Payroll Entry", {
 	},
 
 	set_end_date: function (frm) {
+		if (frm.doc.custom_extraordinary_payroll){
+			return;
+		}
 		frappe.call({
 			method: "hrms.payroll.doctype.payroll_entry.payroll_entry.get_end_date",
 			args: {

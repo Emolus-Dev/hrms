@@ -177,6 +177,11 @@ class PayrollEntry(Document):
 	@frappe.whitelist()
 	def fill_employee_details(self):
 		filters = self.make_filters()
+
+		# Custom
+		if not filters.get("payroll_frequency") and self.custom_extraordinary_payroll:
+			filters["payroll_frequency"] = "Monthly"
+
 		employees = get_employee_list(filters=filters, as_dict=True, ignore_match_conditions=True)
 		self.set("employees", [])
 
