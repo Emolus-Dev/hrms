@@ -134,7 +134,11 @@ class SalarySlip(TransactionBase):
 
 		return self.__actual_end_date
 
+	def before_save(self) -> None:
+		self.get_extraordinary_payroll()
+
 	def validate(self):
+		self.get_extraordinary_payroll()
 		self.check_salary_withholding()
 		self.status = self.get_status()
 		validate_active_employee(self.employee)
@@ -190,6 +194,7 @@ class SalarySlip(TransactionBase):
 		self.publish_update()
 
 	def on_submit(self):
+		self.get_extraordinary_payroll()
 		if self.net_pay < 0:
 			frappe.throw(_("Net Pay cannot be less than 0"))
 		else:
@@ -226,6 +231,7 @@ class SalarySlip(TransactionBase):
 				frappe.db.set_value("Gratuity", additional_salary[0].ref_docname, "status", status)
 
 	def on_cancel(self):
+		self.get_extraordinary_payroll()
 		self.set_status()
 		self.update_status()
 		self.update_payment_status_for_gratuity()
@@ -774,6 +780,9 @@ class SalarySlip(TransactionBase):
 				flt(self.gross_pay) * flt(self.exchange_rate), self.precision("base_gross_pay")
 			)
 
+		if self.extraordinary_payroll:
+			return
+
 		if self.salary_structure:
 			self.calculate_component_amounts("earnings")
 
@@ -1273,7 +1282,15 @@ class SalarySlip(TransactionBase):
 				is_recurring=additional_salary.is_recurring,
 			)
 
+	# Customization
+	def get_extraordinary_payroll(self):
+		if self.payroll_entry:
+			self.extraordinary_payroll = frappe.db.get_value("Payroll Entry", self.payroll_entry, "custom_extraordinary_payroll")
+
 	def add_tax_components(self):
+		if self.extraordinary_payroll:
+			return
+
 		# Calculate variable_based_on_taxable_salary after all components updated in salary slip
 		tax_components, self.other_deduction_components = [], []
 		for d in self._salary_structure_doc.get("deductions"):
