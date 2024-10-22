@@ -189,6 +189,10 @@ frappe.ui.form.on("Payroll Entry", {
 			let error_fields = [];
 			let mandatory_fields = ["company", "payroll_frequency", "start_date", "end_date"];
 
+			if (frm.doc.custom_extraordinary_payroll) {
+				mandatory_fields = mandatory_fields.filter(item => item !== "payroll_frequency");
+			}
+
 			let message = __("Mandatory fields required in {0}", [__(frm.doc.doctype)]);
 
 			mandatory_fields.forEach((field) => {
@@ -229,6 +233,25 @@ frappe.ui.form.on("Payroll Entry", {
 			"salary_slip_based_on_timesheet",
 			"grade",
 		];
+
+		if (frm.doc.custom_extraordinary_payroll){
+			fields = [
+				"company",
+				"start_date",
+				"end_date",
+				"payroll_frequency",
+				"payroll_payable_account",
+				"currency",
+				"department",
+				"branch",
+				"designation",
+				"salary_slip_based_on_timesheet",
+				"grade",
+				"custom_extraordinary_payroll",
+				"custom_extraordinary_payroll_start_date",
+				"custom_till_year"
+			];
+		}
 
 		fields.forEach((field) => {
 			if (frm.doc[field] || frm.doc[field] === 0) {

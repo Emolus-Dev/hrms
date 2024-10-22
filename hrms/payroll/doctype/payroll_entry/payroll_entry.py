@@ -177,7 +177,7 @@ class PayrollEntry(Document):
 	@frappe.whitelist()
 	def fill_employee_details(self):
 		filters = self.make_filters()
-		employees = get_employee_list(filters=filters, as_dict=True, ignore_match_conditions=True)
+		employees = get_employee_list(filters=filters, as_dict=True, ignore_match_conditions=True, extraordinary_payroll_filters={})
 		self.set("employees", [])
 
 		if not employees:
@@ -698,14 +698,14 @@ class PayrollEntry(Document):
 		if employee_wise_accounting_enabled:
 			"""
 			employee_based_payroll_payable_entries = {
-			                'HREMP00004': {
-			                                'earnings': 83332.0,
-			                                'deductions': 2000.0
-			                },
-			                'HREMP00005': {
-			                                'earnings': 50000.0,
-			                                'deductions': 2000.0
-			                }
+							'HREMP00004': {
+											'earnings': 83332.0,
+											'deductions': 2000.0
+							},
+							'HREMP00005': {
+											'earnings': 50000.0,
+											'deductions': 2000.0
+							}
 			}
 			"""
 			for employee, employee_details in self.employee_based_payroll_payable_entries.items():
@@ -949,10 +949,7 @@ class PayrollEntry(Document):
 			frappe.qb.from_(SalarySlip)
 			.join(SalarySlipLoan)
 			.on(SalarySlip.name == SalarySlipLoan.parent)
-			.select(
-				SalarySlip.employee,
-				SalarySlipLoan.total_payment
-			)
+			.select(SalarySlip.employee, SalarySlipLoan.total_payment)
 			.where(
 				(SalarySlip.docstatus == 1)
 				& (SalarySlip.start_date >= self.start_date)
@@ -1125,13 +1122,13 @@ class PayrollEntry(Document):
 	def get_employee_and_attendance_details(self) -> list[dict]:
 		"""Returns a list of employee and attendance details like
 		[
-		        {
-		                "name": "HREMP00001",
-		                "date_of_joining": "2019-01-01",
-		                "relieving_date": "2022-01-01",
-		                "holiday_list": "Holiday List Company",
-		                "attendance_count": 22
-		        }
+				{
+						"name": "HREMP00001",
+						"date_of_joining": "2019-01-01",
+						"relieving_date": "2022-01-01",
+						"holiday_list": "Holiday List Company",
+						"attendance_count": 22
+				}
 		]
 		"""
 		employees = [emp.employee for emp in self.employees]
@@ -1306,10 +1303,30 @@ def set_match_conditions(query, qb_object):
 	return query
 
 
-def remove_payrolled_employees(emp_list, start_date, end_date):
+def remove_payrolled_employees(emp_list, start_date, end_date, filters_extraordinary_payroll):
 	SalarySlip = frappe.qb.DocType("Salary Slip")
 
-	employees_with_payroll = (
+	# employees_with_payroll = (
+	# 	frappe.qb.from_(SalarySlip)
+	# 	.select(SalarySlip.employee)
+	# 	.where(
+	# 		(SalarySlip.docstatus == 1)
+	# 		& (SalarySlip.start_date == start_date)
+	# 		& (SalarySlip.end_date == end_date)
+	# 		& (
+	# 			SalarySlip.custom_extraordinary_payroll
+	# 			== filters_extraordinary_payroll.get("custom_extraordinary_payroll")
+	# 		)
+	# 		& (
+	# 			SalarySlip.custom_extraordinary_payroll_start_date
+	# 			== filters_extraordinary_payroll.get("custom_extraordinary_payroll_start_date")
+	# 		)
+	# 		& (SalarySlip.custom_till_year == filters_extraordinary_payroll.get("custom_till_year"))
+	# 	)
+	# ).run(pluck=True)
+
+	# return [emp_list[emp] for emp in emp_list if emp not in employees_with_payroll]
+	query = (
 		frappe.qb.from_(SalarySlip)
 		.select(SalarySlip.employee)
 		.where(
@@ -1317,10 +1334,31 @@ def remove_payrolled_employees(emp_list, start_date, end_date):
 			& (SalarySlip.start_date == start_date)
 			& (SalarySlip.end_date == end_date)
 		)
-	).run(pluck=True)
+	)
+
+	# Agregar condiciones adicionales si filters_extraordinary_payroll tiene datos
+	if filters_extraordinary_payroll:
+		if filters_extraordinary_payroll.get("custom_extraordinary_payroll"):
+			query = query.where(
+				SalarySlip.custom_extraordinary_payroll
+				== filters_extraordinary_payroll.get("custom_extraordinary_payroll")
+			)
+
+		if filters_extraordinary_payroll.get("custom_extraordinary_payroll_start_date"):
+			query = query.where(
+				SalarySlip.custom_extraordinary_payroll_start_date
+				== filters_extraordinary_payroll.get("custom_extraordinary_payroll_start_date")
+			)
+
+		if filters_extraordinary_payroll.get("custom_till_year"):
+			query = query.where(
+				SalarySlip.custom_till_year
+				== filters_extraordinary_payroll.get("custom_till_year")
+			)
+
+	employees_with_payroll = query.run(pluck=True)
 
 	return [emp_list[emp] for emp in emp_list if emp not in employees_with_payroll]
-
 
 @frappe.whitelist()
 def get_start_end_dates(payroll_frequency, start_date=None, company=None):
@@ -1576,6 +1614,7 @@ def get_employee_list(
 	limit=None,
 	offset=None,
 	ignore_match_conditions=False,
+	extraordinary_payroll_filters=None,
 ) -> list:
 	sal_struct = get_salary_structure(
 		filters.company,
@@ -1604,7 +1643,9 @@ def get_employee_list(
 	else:
 		employees_to_check = {emp[0]: emp for emp in emp_list}
 
-	return remove_payrolled_employees(employees_to_check, filters.start_date, filters.end_date)
+	return remove_payrolled_employees(
+		employees_to_check, filters.start_date, filters.end_date, extraordinary_payroll_filters
+	)
 
 
 @frappe.whitelist()
@@ -1612,8 +1653,26 @@ def get_employee_list(
 def employee_query(doctype, txt, searchfield, start, page_len, filters):
 	filters = frappe._dict(filters)
 
-	if not filters.payroll_frequency:
-		frappe.throw(_("Select Payroll Frequency."))
+	# if not filters.payroll_frequency and not filters.custom_extraordinary_payroll:
+	# 	frappe.throw(_("Select Payroll Frequency."))
+	extraordinary_payroll_filters = frappe._dict(
+		{
+			"custom_extraordinary_payroll": filters.custom_extraordinary_payroll,
+			"custom_extraordinary_payroll_start_date": filters.custom_extraordinary_payroll_start_date,
+			"custom_till_year": filters.custom_till_year,
+		}
+	)
+
+	ok_filters = {}
+	remove_keys_ = [
+		"custom_extraordinary_payroll",
+		"custom_extraordinary_payroll_start_date",
+		"custom_till_year",
+	]
+	ok_keys = filters.keys()
+	for key in ok_keys:
+		if key not in remove_keys_:
+			ok_filters[key] = filters[key]
 
 	employee_list = get_employee_list(
 		filters,
@@ -1623,6 +1682,7 @@ def employee_query(doctype, txt, searchfield, start, page_len, filters):
 		as_dict=False,
 		limit=page_len,
 		offset=start,
+		extraordinary_payroll_filters=extraordinary_payroll_filters,
 	)
 
 	return employee_list
