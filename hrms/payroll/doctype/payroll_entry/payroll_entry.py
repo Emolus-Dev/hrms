@@ -79,8 +79,11 @@ class PayrollEntry(Document):
 				& (SalarySlip.start_date == self.start_date)
 				& (SalarySlip.end_date == self.end_date)
 				& (SalarySlip.docstatus != 2)
-			)
-		).run(as_dict=True)
+				& (SalarySlip.custom_extraordinary_payroll == self.custom_extraordinary_payroll)
+				& (SalarySlip.custom_extraordinary_payroll_start_date == self.custom_extraordinary_payroll_start_date)
+				& (SalarySlip.custom_till_year == self.custom_till_year)
+				)
+			).run(as_dict=True)
 
 		if len(existing_salary_slips):
 			msg = _("Salary Slip already exists for {0} for the given dates").format(
@@ -235,6 +238,9 @@ class PayrollEntry(Document):
 					"payroll_entry": self.name,
 					"exchange_rate": self.exchange_rate,
 					"currency": self.currency,
+					"custom_extraordinary_payroll": self.custom_extraordinary_payroll,
+					"custom_extraordinary_payroll_start_date": self.custom_extraordinary_payroll_start_date,
+					"custom_till_year": self.custom_till_year,
 				}
 			)
 			if len(employees) > 30 or frappe.flags.enqueue_payroll_entry:
