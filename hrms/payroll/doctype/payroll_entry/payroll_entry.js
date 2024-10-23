@@ -160,11 +160,9 @@ frappe.ui.form.on("Payroll Entry", {
 	add_bank_entry_button: function (frm) {
 		frm.call("has_bank_entries").then((r) => {
 			if (!r.message.has_bank_entries) {
-				if (!frm.doc.custom_extraordinary_payroll && !frm.doc.custom_extraordinary_payroll_start_date && !frm.doc.custom_till_year) {
-					frm.add_custom_button(__("Make Bank Entry"), function () {
-						make_bank_entry(frm);
-					}).addClass("btn-primary");
-				}
+				frm.add_custom_button(__("Make Bank Entry"), function () {
+					make_bank_entry(frm);
+				}).addClass("btn-primary");
 
 			} else if (!r.message.has_bank_entries_for_withheld_salaries) {
 				frm.add_custom_button(__("Release Withheld Salaries"), function () {
