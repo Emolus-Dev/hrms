@@ -95,7 +95,7 @@ frappe.ui.form.on("Payroll Entry", {
 				__("Salary Slip {0} failed. You can resolve the {1} and retry {0}.", [
 					process,
 					issue,
-				]),
+				])
 			);
 
 			$("#jump_to_error").on("click", (e) => {
@@ -163,7 +163,6 @@ frappe.ui.form.on("Payroll Entry", {
 				frm.add_custom_button(__("Make Bank Entry"), function () {
 					make_bank_entry(frm);
 				}).addClass("btn-primary");
-
 			} else if (!r.message.has_bank_entries_for_withheld_salaries) {
 				frm.add_custom_button(__("Release Withheld Salaries"), function () {
 					make_bank_entry(frm, (for_withheld_salaries = 1));
@@ -191,7 +190,12 @@ frappe.ui.form.on("Payroll Entry", {
 			let mandatory_fields = ["company", "payroll_frequency", "start_date", "end_date"];
 
 			if (frm.doc.custom_extraordinary_payroll) {
-				mandatory_fields = mandatory_fields.filter(item => item !== "payroll_frequency");
+				mandatory_fields = mandatory_fields.filter((item) => item !== "payroll_frequency");
+			}
+			if (frm.doc.salary_slip_based_on_timesheet) {
+				mandatory_fields = mandatory_fields.filter(
+					(item) => item !== "payroll_frequency" || item != "payroll_frequency"
+				);
 			}
 
 			let message = __("Mandatory fields required in {0}", [__(frm.doc.doctype)]);
@@ -235,7 +239,7 @@ frappe.ui.form.on("Payroll Entry", {
 			"grade",
 		];
 
-		if (frm.doc.custom_extraordinary_payroll){
+		if (frm.doc.custom_extraordinary_payroll) {
 			fields = [
 				"company",
 				"start_date",
@@ -250,7 +254,7 @@ frappe.ui.form.on("Payroll Entry", {
 				"grade",
 				"custom_extraordinary_payroll",
 				"custom_extraordinary_payroll_start_date",
-				"custom_till_year"
+				"custom_till_year",
 			];
 		}
 
@@ -291,7 +295,7 @@ frappe.ui.form.on("Payroll Entry", {
 			"default_payroll_payable_account",
 			(r) => {
 				frm.set_value("payroll_payable_account", r.default_payroll_payable_account);
-			},
+			}
 		);
 	},
 
@@ -316,7 +320,7 @@ frappe.ui.form.on("Payroll Entry", {
 						frm.set_df_property(
 							"exchange_rate",
 							"description",
-							"1 " + frm.doc.currency + " = [?] " + company_currency,
+							"1 " + frm.doc.currency + " = [?] " + company_currency
 						);
 					},
 				});
@@ -362,7 +366,7 @@ frappe.ui.form.on("Payroll Entry", {
 	},
 
 	set_start_end_dates: function (frm) {
-		if (frm.doc.custom_extraordinary_payroll){
+		if (frm.doc.custom_extraordinary_payroll) {
 			return;
 		}
 
@@ -385,7 +389,7 @@ frappe.ui.form.on("Payroll Entry", {
 	},
 
 	set_end_date: function (frm) {
-		if (frm.doc.custom_extraordinary_payroll){
+		if (frm.doc.custom_extraordinary_payroll) {
 			return;
 		}
 		frappe.call({
@@ -430,7 +434,7 @@ frappe.ui.form.on("Payroll Entry", {
 const submit_salary_slip = function (frm) {
 	frappe.confirm(
 		__(
-			"This will submit Salary Slips and create accrual Journal Entry. Do you want to proceed?",
+			"This will submit Salary Slips and create accrual Journal Entry. Do you want to proceed?"
 		),
 		function () {
 			frappe.call({
@@ -445,7 +449,7 @@ const submit_salary_slip = function (frm) {
 			if (frappe.dom.freeze_count) {
 				frappe.dom.unfreeze();
 			}
-		},
+		}
 	);
 };
 
@@ -478,6 +482,6 @@ let render_employee_attendance = function (frm, data) {
 	frm.fields_dict.attendance_detail_html.html(
 		frappe.render_template("employees_with_unmarked_attendance", {
 			data: data,
-		}),
+		})
 	);
 };

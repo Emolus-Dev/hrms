@@ -2,9 +2,9 @@ import os
 
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-from frappe.desk.page.setup_wizard.install_fixtures import (
-	_,  # NOTE: this is not the real translation function
-)
+#from frappe.desk.page.setup_wizard.install_fixtures import (
+#	_,  # NOTE: this is not the real translation function
+#)
 from frappe.desk.page.setup_wizard.setup_wizard import make_records
 from frappe.installer import update_site_config
 

@@ -214,8 +214,9 @@ def get_payment_reference_details(
 	if reference_doctype in ("Expense Claim", "Employee Advance", "Gratuity"):
 		return get_reference_details_for_employee(reference_doctype, reference_name, party_account_currency)
 	else:
+		# , party_type, party
 		return get_reference_details(
-			reference_doctype, reference_name, party_account_currency, party_type, party
+			reference_doctype, reference_name, party_account_currency
 		)
 
 

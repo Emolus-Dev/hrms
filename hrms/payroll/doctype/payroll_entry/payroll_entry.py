@@ -1661,6 +1661,7 @@ def employee_query(doctype, txt, searchfield, start, page_len, filters):
 
 	# if not filters.payroll_frequency and not filters.custom_extraordinary_payroll:
 	# 	frappe.throw(_("Select Payroll Frequency."))
+
 	extraordinary_payroll_filters = frappe._dict(
 		{
 			"custom_extraordinary_payroll": filters.custom_extraordinary_payroll,
