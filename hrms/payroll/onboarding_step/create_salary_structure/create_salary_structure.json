@@ -1,6 +1,6 @@
 {
  "action": "Create Entry",
- "creation": "2020-06-01 11:57:04.002073",
+ "creation": "2020-06-01 11:57:54.527808",
  "description": "",
  "docstatus": 0,
  "doctype": "Onboarding Step",
@@ -9,13 +9,13 @@
  "is_complete": 0,
  "is_single": 0,
  "is_skipped": 0,
- "modified": "2024-10-23 16:06:01.533035",
+ "modified": "2024-10-23 16:06:01.602593",
  "modified_by": "Administrator",
- "name": "Create Salary Component",
+ "name": "Create Salary Structure",
  "owner": "Administrator",
- "reference_document": "Salary Component",
+ "reference_document": "Salary Structure",
  "show_form_tour": 0,
  "show_full_form": 1,
- "title": "Create Salary Component",
+ "title": "Create Salary Structure",
  "validate_action": 1
 }

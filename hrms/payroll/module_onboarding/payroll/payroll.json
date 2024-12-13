@@ -10,15 +10,18 @@
  "creation": "2020-06-01 12:10:52.560472",
  "docstatus": 0,
  "doctype": "Module Onboarding",
- "documentation_url": "https://frappehr.com/docs/v14/en/payroll-entry",
+ "documentation_url": "",
  "idx": 0,
  "is_complete": 0,
- "modified": "2024-05-07 17:44:05.258878",
+ "modified": "2024-10-27 10:16:05.659233",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Payroll",
  "owner": "Administrator",
  "steps": [
+  {
+   "step": "Create Employee"
+  },
   {
    "step": "Create Salary Component"
   },
@@ -29,7 +32,10 @@
    "step": "Create Income Tax Slab"
   },
   {
-   "step": "Create & Assign Salary Structure"
+   "step": "Create Salary Structure"
+  },
+  {
+   "step": "Assign Salary Structure"
   },
   {
    "step": "Create Salary Slip"

@@ -9,7 +9,7 @@ from frappe.desk.page.setup_wizard.setup_wizard import make_records
 from frappe.installer import update_site_config
 
 from hrms.overrides.company import delete_company_fixtures
-
+from frappe import _
 
 def after_install():
 	create_custom_fields(get_custom_fields(), ignore_validate=True)

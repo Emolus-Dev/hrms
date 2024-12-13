@@ -464,7 +464,8 @@ let make_bank_entry = function (frm, for_withheld_salaries = 0) {
 				dn: frm.doc.name,
 				args: { for_withheld_salaries: for_withheld_salaries },
 			},
-			callback: function () {
+			callback: function ({message}) {
+				console.log(message);
 				frappe.set_route("List", "Journal Entry", {
 					"Journal Entry Account.reference_name": frm.doc.name,
 				});

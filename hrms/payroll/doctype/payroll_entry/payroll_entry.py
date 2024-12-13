@@ -878,7 +878,7 @@ class PayrollEntry(Document):
 
 		salary_slip_total = 0
 		salary_slips = self.get_salary_slip_details(for_withheld_salaries)
-
+		frappe.log_error("0 salary_slips", f"0 salary_slips: {salary_slips}")
 		for salary_detail in salary_slips:
 			if salary_detail.parentfield == "earnings":
 				(
@@ -912,7 +912,7 @@ class PayrollEntry(Document):
 								salary_detail.salary_structure,
 							)
 						salary_slip_total += salary_detail.amount
-
+			frappe.log_error(f"1 salary_slip_total: {salary_slip_total}")
 			if salary_detail.parentfield == "deductions":
 				statistical_component = frappe.db.get_value(
 					"Salary Component", salary_detail.salary_component, "statistical_component", cache=True
@@ -935,6 +935,7 @@ class PayrollEntry(Document):
 			salary_slip_total -= loan.total_payment
 
 		bank_entry = None
+		frappe.log_error(f"2 salary_slip_total: {salary_slip_total}")
 		if salary_slip_total > 0:
 			remark = "withheld salaries" if for_withheld_salaries else "salaries"
 			bank_entry = self.set_accounting_entries_for_bank_entry(salary_slip_total, remark)
