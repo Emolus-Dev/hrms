@@ -10,6 +10,7 @@
   "disable",
   "section_break_2",
   "calculate_gratuity_amount_based_on",
+  "last_slabs",
   "total_working_days_per_year",
   "column_break_3",
   "work_experience_calculation_function",
@@ -31,7 +32,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Calculate Gratuity Amount Based On",
-   "options": "Current Slab\nSum of all previous slabs",
+   "options": "Current Slab\nSum of all previous slabs\nLast Slabs",
    "reqd": 1
   },
   {
@@ -64,7 +65,7 @@
    "fieldname": "work_experience_calculation_function",
    "fieldtype": "Select",
    "label": "Work Experience Calculation Method",
-   "options": "Round off Work Experience\nTake Exact Completed Years\nManual"
+   "options": "Round off Work Experience\nTake Exact Completed Years\nExact Time\nManual"
   },
   {
    "default": "365",
@@ -89,11 +90,18 @@
    "fieldname": "gratuity_details_tab",
    "fieldtype": "Section Break",
    "label": "Gratuity"
+  },
+  {
+   "depends_on": "eval:doc.calculate_gratuity_amount_based_on==\"Last Slabs\"",
+   "fieldname": "last_slabs",
+   "fieldtype": "Int",
+   "label": "Last Slabs",
+   "mandatory_depends_on": "eval:doc.calculate_gratuity_amount_based_on==\"Last Slabs\""
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-03-15 01:48:52.295003",
+ "modified": "2025-01-25 12:42:22.594611",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Gratuity Rule",
