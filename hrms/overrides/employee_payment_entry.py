@@ -215,7 +215,9 @@ def get_payment_reference_details(
 		return get_reference_details_for_employee(reference_doctype, reference_name, party_account_currency)
 	else:
 		return get_reference_details(
-			reference_doctype, reference_name, party_account_currency, party_type, party
+			# reference_doctype, reference_name, party_account_currency, party_type, party
+			# CUSTOMIZATION
+			reference_doctype, reference_name, party_account_currency
 		)
 
 
