@@ -927,6 +927,10 @@ class PayrollEntry(Document):
 		total_loan_repayment = self.process_loan_repayments_for_bank_entry(salary_details) or 0
 		salary_slip_total -= total_loan_repayment
 
+		# CUSTOMIZATION
+		for loan in self.get_loans():
+			salary_slip_total -= loan.total_payment
+
 		bank_entry = None
 		if salary_slip_total > 0:
 			remark = "withheld salaries" if for_withheld_salaries else "salaries"
@@ -936,6 +940,30 @@ class PayrollEntry(Document):
 				link_bank_entry_in_salary_withholdings(salary_details, bank_entry.name)
 
 		return bank_entry
+
+	# CUSTOMIZATION
+	def get_loans(self) -> list:
+			"""
+			Returns list of loans for selected employees
+			"""
+			SalarySlip = frappe.qb.DocType("Salary Slip")
+			SalarySlipLoan = frappe.qb.DocType("Salary Slip Loan")
+
+			return (
+				frappe.qb.from_(SalarySlip)
+				.join(SalarySlipLoan)
+				.on(SalarySlip.name == SalarySlipLoan.parent)
+				.select(
+					SalarySlip.employee,
+					SalarySlipLoan.total_payment
+				)
+				.where(
+					(SalarySlip.docstatus == 1)
+					& (SalarySlip.start_date >= self.start_date)
+					& (SalarySlip.end_date <= self.end_date)
+					& (SalarySlip.payroll_entry == self.name)
+				)
+			).run(as_dict=True)
 
 	def get_salary_slip_details(self, for_withheld_salaries=False):
 		SalarySlip = frappe.qb.DocType("Salary Slip")

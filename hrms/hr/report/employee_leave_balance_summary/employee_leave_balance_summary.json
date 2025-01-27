@@ -29,5 +29,21 @@
   {
    "role": "Leave Approver"
   }
- ]
+ ],
+ "filters": [
+    {
+        "fieldname": "Grade",
+        "fieldtype": "Link",
+        "label": "Grado",
+        "mandatory": 0,
+        "wildcard_filter": 0
+    },
+    {
+        "fieldname": "Branch",
+        "fieldtype": "Link",
+        "label": "Sucursal",
+        "mandatory": 0,
+        "wildcard_filter": 0
+    }
+  ]
 }
