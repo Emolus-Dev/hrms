@@ -1301,11 +1301,11 @@ class SalarySlip(TransactionBase):
 	# Customization
 	def get_extraordinary_payroll(self):
 		if self.payroll_entry:
-			self.extraordinary_payroll = frappe.db.get_value("Payroll Entry", self.payroll_entry, "custom_extraordinary_payroll")
+			self.custom_extraordinary_payroll = frappe.db.get_value("Payroll Entry", self.payroll_entry, "custom_extraordinary_payroll")
 
 	def add_tax_components(self):
 		# Customization
-		if self.extraordinary_payroll:
+		if self.custom_extraordinary_payroll:
 			return
 
 		# Calculate variable_based_on_taxable_salary after all components updated in salary slip

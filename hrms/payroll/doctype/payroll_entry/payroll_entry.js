@@ -200,6 +200,11 @@ frappe.ui.form.on("Payroll Entry", {
 			if (frm.doc.custom_extraordinary_payroll) {
 				mandatory_fields = mandatory_fields.filter(item => item !== "payroll_frequency");
 			}
+			if (frm.doc.salary_slip_based_on_timesheet) {
+				mandatory_fields = mandatory_fields.filter(
+					(item) => item !== "payroll_frequency" || item != "payroll_frequency"
+				);
+			}
 
 			let message = __("Mandatory fields required in {0}", [__(frm.doc.doctype)]);
 
