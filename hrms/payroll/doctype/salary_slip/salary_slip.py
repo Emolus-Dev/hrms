@@ -79,6 +79,7 @@ class SalarySlip(TransactionBase):
 			"ceil": ceil,
 			"floor": floor,
 		}
+		self._salary_structure_doc = None
 
 	def autoname(self):
 		self.name = make_autoname(self.series)
@@ -1754,6 +1755,9 @@ class SalarySlip(TransactionBase):
 		return future_recurring_additional_amount
 
 	def get_amount_based_on_payment_days(self, row):
+		if not self._salary_structure_doc:
+			self._salary_structure_doc = frappe.get_cached_doc("Salary Structure", self.salary_structure)
+
 		amount, additional_amount = row.amount, row.additional_amount
 		timesheet_component = self._salary_structure_doc.salary_component
 

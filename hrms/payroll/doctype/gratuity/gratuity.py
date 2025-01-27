@@ -14,6 +14,7 @@ class Gratuity(AccountsController):
 	def validate(self):
 		data = self.calculate_work_experience_and_amount()
 		self.current_work_experience = data["current_work_experience"]
+		self.total_working_days = data["total_working_days"]
 		self.amount = data["amount"]
 		self.set_status()
 
@@ -28,6 +29,7 @@ class Gratuity(AccountsController):
 					"total_working_days_per_year",
 					"minimum_year_for_gratuity",
 					"calculate_gratuity_amount_based_on",
+					"last_slabs"
 				],
 				as_dict=True,
 			)
@@ -142,11 +144,13 @@ class Gratuity(AccountsController):
 		if self.gratuity_settings.method == "Manual":
 			current_work_experience = flt(self.current_work_experience)
 		else:
-			current_work_experience = self.get_work_experience()
+			# current_work_experience = self.get_work_experience()
+			current_work_experience, total_working_days = self.get_work_experience()
 
 		gratuity_amount = self.get_gratuity_amount(current_work_experience)
 
-		return {"current_work_experience": current_work_experience, "amount": gratuity_amount}
+		# return {"current_work_experience": current_work_experience, "amount": gratuity_amount}
+		return {"current_work_experience": current_work_experience, "amount": gratuity_amount, "total_working_days": total_working_days}
 
 	def get_work_experience(self) -> float:
 		total_working_days = self.get_total_working_days()
@@ -155,16 +159,18 @@ class Gratuity(AccountsController):
 
 		if rule.method == "Round off Work Experience":
 			work_experience = round(work_experience)
+		elif rule.method == "Exact Time":
+			work_experience = flt(work_experience)
 		else:
 			work_experience = flt(work_experience, self.precision("current_work_experience"))
 
 		if work_experience < rule.minimum_year_for_gratuity:
 			frappe.throw(
-				_("Employee: {0} have to complete minimum {1} years for gratuity").format(
+				_("Employee: {0} has to complete a minimum of {1} years for gratuity").format(
 					bold(self.employee), rule.minimum_year_for_gratuity
 				)
 			)
-		return work_experience or 0
+		return work_experience or 0, total_working_days or 0
 
 	def get_total_working_days(self) -> float:
 		date_of_joining, relieving_date = frappe.db.get_value(
@@ -208,6 +214,8 @@ class Gratuity(AccountsController):
 		total_component_amount = self.get_total_component_amount()
 		calculate_amount_based_on = self.gratuity_settings.calculate_gratuity_amount_based_on
 
+		last_slabs = self.gratuity_settings.last_slabs
+
 		gratuity_amount = 0
 		slabs = self.get_gratuity_rule_slabs()
 		slab_found = False
@@ -233,6 +241,29 @@ class Gratuity(AccountsController):
 					)
 					slab_found = True
 					break
+
+				elif calculate_amount_based_on == "Last Slabs":
+					# Calcular el promedio de los últimos N slabs
+					total_earnings = 0
+					slabs_considered = 0
+
+					# Obtener los últimos N slabs
+					slab_index = slabs.index(slab)  # Obtiene el índice del slab actual en la lista
+					start_index = max(slab_index - last_slabs + 1, 0)  # Asegúrate de no ir fuera de la lista
+
+					for i in range(start_index, slab_index + 1):  # Considera los N slabs anteriores hasta el actual
+						current_slab = slabs[i]
+						if self._is_experience_within_slab(current_slab, experience):
+							total_earnings += current_slab.fraction_of_applicable_earnings
+							slabs_considered += 1
+
+					if slabs_considered > 0:
+						average_fraction = total_earnings / slabs_considered
+						gratuity_amount = total_component_amount * experience * average_fraction
+						slab_found = True
+
+					if slab_found:
+						break
 
 				# completed more years than the current slab, so consider fraction for current slab too
 				if self._is_experience_beyond_slab(slab, experience):
