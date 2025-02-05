@@ -1350,7 +1350,7 @@ def remove_payrolled_employees(emp_list, start_date, end_date, filters_extraordi
 			& (SalarySlip.start_date == start_date)
 			& (SalarySlip.end_date == end_date)
 		)
-	).run(pluck=True)
+	)  #.run(pluck=True)
 
 	# return [emp_list[emp] for emp in emp_list if emp not in employees_with_payroll]
 		# Agregar condiciones adicionales si filters_extraordinary_payroll tiene datos
