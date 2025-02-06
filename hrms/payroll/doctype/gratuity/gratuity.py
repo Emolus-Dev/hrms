@@ -1,6 +1,8 @@
 # Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
+from datetime import datetime
+
 import frappe
 from frappe import _, bold
 from frappe.query_builder.functions import Sum
@@ -54,10 +56,12 @@ class Gratuity(AccountsController):
 			self.status = status
 
 	def on_submit(self):
-		if self.pay_via_salary_slip:
+		if self.custom_pay_via == "Salary Slip":
 			self.create_additional_salary()
-		else:
+		elif self.custom_pay_via == "Journal Entry":
 			self.create_gl_entries()
+		elif self.custom_pay_via == "Full and Final Statement":
+			self.create_full_and_final_statement()
 
 	def on_cancel(self):
 		self.ignore_linked_doctypes = ["GL Entry"]
@@ -108,17 +112,78 @@ class Gratuity(AccountsController):
 		return gl_entry
 
 	def create_additional_salary(self):
-		if self.pay_via_salary_slip:
-			additional_salary = frappe.new_doc("Additional Salary")
-			additional_salary.employee = self.employee
-			additional_salary.salary_component = self.salary_component
-			additional_salary.overwrite_salary_structure_amount = 0
-			additional_salary.amount = self.amount
-			additional_salary.payroll_date = self.payroll_date
-			additional_salary.company = self.company
-			additional_salary.ref_doctype = self.doctype
-			additional_salary.ref_docname = self.name
-			additional_salary.submit()
+		#if self.custom_pay_via == "Salary Slip" :
+		additional_salary = frappe.new_doc("Additional Salary")
+		additional_salary.employee = self.employee
+		additional_salary.salary_component = self.salary_component
+		additional_salary.overwrite_salary_structure_amount = 0
+		additional_salary.amount = self.amount
+		additional_salary.payroll_date = self.payroll_date
+		additional_salary.company = self.company
+		additional_salary.ref_doctype = self.doctype
+		additional_salary.ref_docname = self.name
+		additional_salary.submit()
+
+	def create_full_and_final_statement(self):
+		full_and_final_statement_exists = frappe.get_all(
+			"Full and Final Statement", 
+			filters=[
+				["employee", "=", self.employee],
+				["company", "=", self.company],
+				["docstatus", "in", [0,1]],
+			],
+			fields=["name", "docstatus"]
+		)
+		if not full_and_final_statement_exists:
+			full_and_final_statement = frappe.new_doc("Full and Final Statement")
+			full_and_final_statement.employee = self.employee
+			full_and_final_statement.transaction_date = self.posting_date
+			full_and_final_statement.company = self.company
+			full_and_final_statement.docstatus = 0
+			full_and_final_statement.relieving_date = frappe.db.get_value(
+				"Employee", self.employee, ["relieving_date"]
+			)
+			full_and_final_statement.append("payables", {
+				"component": self.gratuity_rule, 
+				"reference_document_type": "Gratuity", 
+				"reference_document": self.name,
+				"amount": self.amount
+			})
+			full_and_final_statement.insert(ignore_mandatory=True, ignore_links=True)
+		else:
+			for fafs in full_and_final_statement_exists:
+				if fafs.docstatus == 0:
+					full_and_final_statement = frappe.get_doc("Full and Final Statement", fafs.name)
+
+					existing_components = {row.component for row in full_and_final_statement.payables}
+
+					if self.gratuity_rule not in existing_components:
+						# Agregar si no existe
+						full_and_final_statement.append("payables", {
+							"component": self.gratuity_rule, 
+							"reference_document_type": "Gratuity", 
+							"reference_document": self.name,
+							"amount": self.amount
+						})
+					else:
+						# Opcional: Eliminar duplicados antes de guardar
+						unique_payables = []
+						seen_components = set()
+						
+						for row in full_and_final_statement.payables:
+							if row.component not in seen_components:
+								unique_payables.append(row)
+								seen_components.add(row.component)
+						
+						full_and_final_statement.payables = unique_payables  # Asigna solo elementos únicos
+
+					# Guardar cambios
+					full_and_final_statement.save()
+				else:
+					frappe.throw(f"A Full and Final Statement already exists for employee: {self.employee}")
+					
+				
+    
 
 	def set_total_advance_paid(self):
 		gle = frappe.qb.DocType("GL Entry")
@@ -186,7 +251,16 @@ class Gratuity(AccountsController):
 			)
 		if self.custom_extraordinary_payroll:
 			date_of_joining, relieving_date = [self.custom_start_date, self.custom_end_date]
-		
+
+		# since_the_most_recent
+		self.gratuity_rule_doc = frappe.get_doc("Gratuity Rule", self.gratuity_rule)
+
+		if self.gratuity_rule_doc.since_the_most_recent:
+			month_number = int(self.gratuity_rule_doc.since_the_most_recent.split(".")[0])
+			year = relieving_date.year if relieving_date.month >= month_number else relieving_date.year - 1
+			most_recent_month = datetime(year, month_number, 1)
+			date_of_joining = most_recent_month.strftime("%Y-%m-%d")
+
 		employees = [self.employee]
 		if previous_employee:
 			date_of_joining = frappe.db.get_value(
@@ -204,33 +278,26 @@ class Gratuity(AccountsController):
 		total_working_days = (get_datetime(relieving_date) - get_datetime(date_of_joining)).days
 
 		payroll_based_on = frappe.db.get_single_value("Payroll Settings", "payroll_based_on") or "Leave"
-  
-		
+
 		if payroll_based_on == "Leave":
 			total_lwp = self.get_non_working_days(relieving_date, "On Leave")
 			total_working_days -= total_lwp
 		elif payroll_based_on == "Attendance":
 			total_absent = self.get_non_working_days(relieving_date, "Absent")
 			total_working_days -= total_absent
-		
-		
-		if self.custom_extraordinary_payroll:
-			
+
+		if self.custom_extraordinary_payroll or self.gratuity_rule_doc.since_the_most_recent:
 			total_working_days_query = """
 				SELECT SUM(total_working_days) AS dias_entre_fechas
 				FROM `tabSalary Slip`
 				WHERE docstatus = 1 AND employee IN %s
 				AND posting_date BETWEEN %s AND %s;
 			"""
-			
+
 			twd = frappe.db.sql(total_working_days_query, (tuple(employees), date_of_joining, relieving_date))
-			
+
 			total_working_days = twd[0][0] if twd and twd[0][0] else 0
 
-			# TODO: if self.custom_extraordinary_payroll: DEBE SER LA SUMATORIA DE LOS DIAS LABORADOS DE LOS SALARY SLIP DEL CURRENT EMPLOYEE
-			# TODO: 30 / 365 * PROMEDIO(SUM(COMPONENTES QUE ESTAN DEFINIDOS EN EL GRATUIDAD RULE))
-			# 30 / 365 * 5000 = 410.95890410958906
-   
 		return total_working_days, date_of_joining, relieving_date
 
 	def get_non_working_days(self, relieving_date: str, status: str) -> float:

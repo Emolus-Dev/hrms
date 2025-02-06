@@ -181,6 +181,7 @@
   },
   {
    "depends_on": "pay_via_salary_slip",
+   "fetch_from": "gratuity_rule.custom_salary_component",
    "fieldname": "salary_component",
    "fieldtype": "Link",
    "label": "Salary Component",
@@ -200,7 +201,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-12-11 08:46:04.751908",
+ "modified": "2025-02-06 10:46:30.966952",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Gratuity",

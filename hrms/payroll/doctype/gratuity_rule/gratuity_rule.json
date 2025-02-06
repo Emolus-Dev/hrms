@@ -14,10 +14,12 @@
   "column_break_3",
   "work_experience_calculation_function",
   "minimum_year_for_gratuity",
+  "since_the_most_recent",
   "column_break_8",
   "applicable_earnings_component",
   "gratuity_rules_section",
-  "gratuity_rule_slabs"
+  "gratuity_rule_slabs",
+  "last_slabs"
  ],
  "fields": [
   {
@@ -91,16 +93,22 @@
    "label": "Gratuity"
   },
   {
-    "depends_on": "eval:doc.calculate_gratuity_amount_based_on==\"Last Slabs\"",
-    "fieldname": "last_slabs",
-    "fieldtype": "Int",
-    "label": "Last Slabs",
-    "mandatory_depends_on": "eval:doc.calculate_gratuity_amount_based_on==\"Last Slabs\""
-   }
+   "depends_on": "eval:doc.calculate_gratuity_amount_based_on==\"Last Slabs\"",
+   "fieldname": "last_slabs",
+   "fieldtype": "Int",
+   "label": "Last Slabs",
+   "mandatory_depends_on": "eval:doc.calculate_gratuity_amount_based_on==\"Last Slabs\""
+  },
+  {
+   "fieldname": "since_the_most_recent",
+   "fieldtype": "Select",
+   "label": "Since the most recent",
+   "options": "\n1. January\n2. February\n3. March\n4. April\n5. May\n6. June\n7. July\n8. August\n9. September\n10. October\n11. November\n12. December"
+  }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-03-15 01:48:52.295003",
+ "modified": "2025-02-06 11:06:20.854268",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Gratuity Rule",
