@@ -15,6 +15,8 @@ class Gratuity(AccountsController):
 		data = self.calculate_work_experience_and_amount()
 		self.current_work_experience = data["current_work_experience"]
 		self.total_working_days = data["total_working_days"]
+		self.start_date = data["start_date"]
+		self.end_date = data["end_date"]
 		self.amount = data["amount"]
 		self.set_status()
 
@@ -29,7 +31,7 @@ class Gratuity(AccountsController):
 					"total_working_days_per_year",
 					"minimum_year_for_gratuity",
 					"calculate_gratuity_amount_based_on",
-					"last_slabs"
+					"last_slabs",
 				],
 				as_dict=True,
 			)
@@ -145,15 +147,21 @@ class Gratuity(AccountsController):
 			current_work_experience = flt(self.current_work_experience)
 		else:
 			# current_work_experience = self.get_work_experience()
-			current_work_experience, total_working_days = self.get_work_experience()
+			current_work_experience, total_working_days, start_date, end_date = self.get_work_experience()
 
 		gratuity_amount = self.get_gratuity_amount(current_work_experience)
 
 		# return {"current_work_experience": current_work_experience, "amount": gratuity_amount}
-		return {"current_work_experience": current_work_experience, "amount": gratuity_amount, "total_working_days": total_working_days}
+		return {
+			"current_work_experience": current_work_experience,
+			"amount": gratuity_amount,
+			"total_working_days": total_working_days,
+			"start_date": start_date,
+			"end_date": end_date,
+		}
 
 	def get_work_experience(self) -> float:
-		total_working_days = self.get_total_working_days()
+		total_working_days, start_date, end_date = self.get_total_working_days()
 		rule = self.gratuity_settings
 		work_experience = total_working_days / (rule.total_working_days_per_year or 1)
 
@@ -170,12 +178,22 @@ class Gratuity(AccountsController):
 					bold(self.employee), rule.minimum_year_for_gratuity
 				)
 			)
-		return work_experience or 0, total_working_days or 0
+		return work_experience or 0, total_working_days or 0, start_date or 0, end_date or 0
 
 	def get_total_working_days(self) -> float:
-		date_of_joining, relieving_date = frappe.db.get_value(
-			"Employee", self.employee, ["date_of_joining", "relieving_date"]
+		date_of_joining, relieving_date, previous_employee = frappe.db.get_value(
+				"Employee", self.employee, ["date_of_joining", "relieving_date", "custom_previous_employee"]
+			)
+		if self.custom_extraordinary_payroll:
+			date_of_joining, relieving_date = [self.custom_start_date, self.custom_end_date]
+		
+		employees = [self.employee]
+		if previous_employee:
+			date_of_joining = frappe.db.get_value(
+			"Employee", self.employee, ["date_of_joining"]
 		)
+			employees.append(previous_employee)
+
 		if not relieving_date:
 			frappe.throw(
 				_("Please set Relieving Date for employee: {0}").format(
@@ -186,14 +204,34 @@ class Gratuity(AccountsController):
 		total_working_days = (get_datetime(relieving_date) - get_datetime(date_of_joining)).days
 
 		payroll_based_on = frappe.db.get_single_value("Payroll Settings", "payroll_based_on") or "Leave"
+  
+		
 		if payroll_based_on == "Leave":
 			total_lwp = self.get_non_working_days(relieving_date, "On Leave")
 			total_working_days -= total_lwp
 		elif payroll_based_on == "Attendance":
 			total_absent = self.get_non_working_days(relieving_date, "Absent")
 			total_working_days -= total_absent
+		
+		
+		if self.custom_extraordinary_payroll:
+			
+			total_working_days_query = """
+				SELECT SUM(total_working_days) AS dias_entre_fechas
+				FROM `tabSalary Slip`
+				WHERE docstatus = 1 AND employee IN %s
+				AND posting_date BETWEEN %s AND %s;
+			"""
+			
+			twd = frappe.db.sql(total_working_days_query, (tuple(employees), date_of_joining, relieving_date))
+			
+			total_working_days = twd[0][0] if twd and twd[0][0] else 0
 
-		return total_working_days
+			# TODO: if self.custom_extraordinary_payroll: DEBE SER LA SUMATORIA DE LOS DIAS LABORADOS DE LOS SALARY SLIP DEL CURRENT EMPLOYEE
+			# TODO: 30 / 365 * PROMEDIO(SUM(COMPONENTES QUE ESTAN DEFINIDOS EN EL GRATUIDAD RULE))
+			# 30 / 365 * 5000 = 410.95890410958906
+   
+		return total_working_days, date_of_joining, relieving_date
 
 	def get_non_working_days(self, relieving_date: str, status: str) -> float:
 		filters = {
@@ -242,28 +280,30 @@ class Gratuity(AccountsController):
 					slab_found = True
 					break
 
-				elif calculate_amount_based_on == "Last Slabs":
-					# Calcular el promedio de los últimos N slabs
-					total_earnings = 0
-					slabs_considered = 0
+			elif calculate_amount_based_on == "Last Slabs":
+				# Calcular el promedio de los últimos N slabs
+				total_earnings = 0
+				slabs_considered = 0
 
-					# Obtener los últimos N slabs
-					slab_index = slabs.index(slab)  # Obtiene el índice del slab actual en la lista
-					start_index = max(slab_index - last_slabs + 1, 0)  # Asegúrate de no ir fuera de la lista
+				# Obtener los últimos N slabs
+				slab_index = slabs.index(slab)  # Obtiene el índice del slab actual en la lista
+				start_index = max(slab_index - last_slabs + 1, 0)  # Asegúrate de no ir fuera de la lista
 
-					for i in range(start_index, slab_index + 1):  # Considera los N slabs anteriores hasta el actual
-						current_slab = slabs[i]
-						if self._is_experience_within_slab(current_slab, experience):
-							total_earnings += current_slab.fraction_of_applicable_earnings
-							slabs_considered += 1
+				for i in range(
+					start_index, slab_index + 1
+				):  # Considera los N slabs anteriores hasta el actual
+					current_slab = slabs[i]
+					if self._is_experience_within_slab(current_slab, experience):
+						total_earnings += current_slab.fraction_of_applicable_earnings
+						slabs_considered += 1
 
-					if slabs_considered > 0:
-						average_fraction = total_earnings / slabs_considered
-						gratuity_amount = total_component_amount * experience * average_fraction
-						slab_found = True
+				if slabs_considered > 0:
+					average_fraction = total_earnings / slabs_considered
+					gratuity_amount = total_component_amount * experience * average_fraction
+					slab_found = True
 
-					if slab_found:
-						break
+				if slab_found:
+					break
 
 				# completed more years than the current slab, so consider fraction for current slab too
 				if self._is_experience_beyond_slab(slab, experience):
