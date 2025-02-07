@@ -30,6 +30,14 @@ frappe.ui.form.on("Gratuity", {
 				},
 			};
 		});
+
+		frm.set_query("gratuity_rule", function () {
+			return {
+				filters: {
+					custom_extraordinary_payroll: 0,
+				},
+			};
+		});
 	},
 	refresh: function (frm) {
 		if (frm.doc.docstatus == 1 && !frm.doc.pay_via_salary_slip && frm.doc.status == "Unpaid") {
