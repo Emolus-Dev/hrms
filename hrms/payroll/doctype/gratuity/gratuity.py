@@ -297,7 +297,7 @@ class Gratuity(AccountsController):
 			total_absent = self.get_non_working_days(relieving_date, "Absent")
 			total_working_days -= total_absent
 
-		if self.custom_extraordinary_payroll or self.gratuity_rule_doc.since_the_most_recent:
+		if self.custom_extraordinary_payroll or self.gratuity_rule_doc.since_the_most_recent or self.gratuity_rule_doc.custom_last_slips:
 			total_working_days_query = """
 				SELECT SUM(total_working_days) AS dias_entre_fechas
 				FROM `tabSalary Slip`
@@ -414,8 +414,7 @@ class Gratuity(AccountsController):
 					)
 			)
 			
-			# Obtener el mes y año de la fecha de inicio
-			month_year = salary_slip["start_date"].strftime("%Y-%m")  # Formato: 'YYYY-MM'
+			month_year = salary_slip["start_date"].strftime("%Y-%m")
 			monthly_salaries[month_year].append(salary_slip["gross_pay"])
 
 		average_monthly_salary = 0
@@ -424,11 +423,10 @@ class Gratuity(AccountsController):
 		for salaries in monthly_salaries.values():
 			average_monthly_salary += sum(salaries) / len(salaries)
 
-		# Calcular el promedio de los promedios mensuales
 		if total_months > 0:
 			average_monthly_salary = average_monthly_salary / total_months
 		else:
-			average_monthly_salary = 0  # Si no hay recibos de salario
+			average_monthly_salary = 0 
 
 		return average_monthly_salary, slips_detail
 
