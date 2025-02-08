@@ -385,7 +385,7 @@ class Gratuity(AccountsController):
 
 	def get_total_component_amount(self) -> float:
 		applicable_earning_components = self.get_applicable_components()
-		salary_slips = get_last_salary_slips(self.employee, self.gratuity_rule)
+		salary_slips = get_last_salary_slips(self.employee, self.gratuity_rule, self.end_date)
 		if not salary_slips:
 			frappe.throw(_("No Salary Slip found for Employee: {0}").format(bold(self.employee)))
 
@@ -443,7 +443,7 @@ class Gratuity(AccountsController):
 		return bool(slab.from_year < experience and (slab.to_year < experience and slab.to_year != 0))
 
 
-def get_last_salary_slips(employee: str, gratuity: str) -> dict | None:
+def get_last_salary_slips(employee: str, gratuity: str, end_date: str) -> dict | None:
 	from datetime import datetime
 	from dateutil.relativedelta import relativedelta
 
@@ -451,33 +451,33 @@ def get_last_salary_slips(employee: str, gratuity: str) -> dict | None:
 	if not last_slips > 0:
 		last_slips = 1
 
-	most_recent_slip = frappe.db.get_value(
+	# most_recent_slip = frappe.db.get_value(
+	# 	"Salary Slip",
+	# 	{"employee": employee, "docstatus": 1},
+	# 	["start_date"],
+	# 	order_by="start_date DESC",
+	# 	limit=1
+	# )
+
+	# if most_recent_slip:
+	
+	fecha_limite = end_date - relativedelta(months=6)
+	fecha_limite = fecha_limite.replace(day=1)
+
+	fecha_limite_str = fecha_limite.strftime('%Y-%m-%d')
+
+	salary_slips = frappe.db.get_all(
 		"Salary Slip",
-		{"employee": employee, "docstatus": 1},
-		["start_date"],
+		filters={
+			"employee": employee,
+			"docstatus": 1,
+			"start_date": [">=", fecha_limite_str],
+			"end_date": ["<=", end_date] 
+		},
 		order_by="start_date DESC",
-		limit=1
+		as_dict=True
 	)
-
-	if most_recent_slip:
-		fecha_reciente = datetime.strptime(most_recent_slip[0], '%Y-%m-%d')
-		
-		fecha_limite = fecha_reciente - relativedelta(months=6)
-		fecha_limite = fecha_limite.replace(day=1)
-
-		fecha_limite_str = fecha_limite.strftime('%Y-%m-%d')
-
-		salary_slips = frappe.db.get_all(
-			"Salary Slip",
-			filters={
-				"employee": employee,
-				"docstatus": 1,
-				"start_date": [">=", fecha_limite_str] 
-			},
-			order_by="start_date DESC",
-			as_dict=True
-		)
-	else:
+	if not salary_slips:
 		salary_slips = []
 
 	return salary_slips
