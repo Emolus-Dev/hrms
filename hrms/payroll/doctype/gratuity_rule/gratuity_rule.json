@@ -16,7 +16,9 @@
   "minimum_year_for_gratuity",
   "since_the_most_recent",
   "column_break_8",
+  "based_on",
   "applicable_earnings_component",
+  "leave_type",
   "gratuity_rules_section",
   "gratuity_rule_slabs"
  ],
@@ -36,12 +38,13 @@
    "reqd": 1
   },
   {
+   "depends_on": "eval:doc.based_on==\"Components\"",
    "description": "Salary components should be part of the Salary Structure.",
    "fieldname": "applicable_earnings_component",
    "fieldtype": "Table MultiSelect",
    "label": "Applicable Earnings Component",
-   "options": "Gratuity Applicable Component",
-   "reqd": 1
+   "mandatory_depends_on": "eval:doc.based_on==\"Components\"",
+   "options": "Gratuity Applicable Component"
   },
   {
    "fieldname": "column_break_3",
@@ -92,15 +95,32 @@
    "label": "Gratuity"
   },
   {
+   "depends_on": "eval:doc.based_on==\"Components\"",
    "fieldname": "since_the_most_recent",
    "fieldtype": "Select",
    "label": "Since the most recent",
    "options": "\n1. January\n2. February\n3. March\n4. April\n5. May\n6. June\n7. July\n8. August\n9. September\n10. October\n11. November\n12. December"
+  },
+  {
+   "default": "Components",
+   "fieldname": "based_on",
+   "fieldtype": "Select",
+   "label": "Based On",
+   "options": "Components\nPending Leaves",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.based_on==\"Pending Leaves\"",
+   "fieldname": "leave_type",
+   "fieldtype": "Link",
+   "label": "Leave Type",
+   "mandatory_depends_on": "eval:doc.based_on==\"Pending Leaves\"",
+   "options": "Leave Type"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-08 04:14:20.209547",
+ "modified": "2025-02-08 06:19:32.727573",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Gratuity Rule",

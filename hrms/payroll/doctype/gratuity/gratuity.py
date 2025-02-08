@@ -311,7 +311,31 @@ class Gratuity(AccountsController):
 
 		if total_days > total_working_days:
 			frappe.throw(f"Verifique la cantidad de días trabajados del empleado { employee_full_name } en la información de Apertura.")
-  
+   
+		if self.gratuity_rule_doc.based_on == "Pending Leaves":
+			allocation = frappe.db.get_value(
+				"Leave Allocation",
+				filters={"employee": self.employee, "leave_type": self.gratuity_rule_doc.leave_type, "docstatus": 1},
+				fieldname="total_leaves_allocated"
+			)
+
+			if not allocation:
+				return 0  # Si no hay asignaciones para este tipo de licencia, retornar 0
+
+			# Obtener las aplicaciones de licencia aprobadas para este tipo de licencia
+			approved_leaves = frappe.db.get_all(
+				"Leave Application",
+				filters={"employee": self.employee, "leave_type": self.gratuity_rule_doc.leave_type, "docstatus": 1, "status": "Approved"},
+				fields=["total_leave_days"],
+				as_dict=True
+			)
+
+			# Calcular los días usados para este tipo de licencia
+			used_leaves = sum(flt(leave["total_leave_days"]) for leave in approved_leaves)
+
+			# Calcular los días pendientes (asignados - usados)
+			total_working_days = flt(allocation) - used_leaves
+
 		return total_working_days, date_of_joining, relieving_date
 
 	def get_non_working_days(self, relieving_date: str, status: str) -> float:
@@ -385,6 +409,7 @@ class Gratuity(AccountsController):
 		return flt(gratuity_amount, self.precision("amount")), slips_detail
 
 	def get_total_component_amount(self) -> float:
+		#if self.based_on == "Components":
 		applicable_earning_components = self.get_applicable_components()
 		salary_slips = get_last_salary_slips(self.employee, self.gratuity_rule, self.end_date)
 		if not salary_slips:
