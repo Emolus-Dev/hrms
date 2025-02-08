@@ -20,6 +20,7 @@ class Gratuity(AccountsController):
 		self.start_date = data["start_date"]
 		self.end_date = data["end_date"]
 		self.amount = data["amount"]
+		self.custom_slips_detail = data["slips_detail"]
 		self.set_status()
 
 	@property
@@ -214,7 +215,7 @@ class Gratuity(AccountsController):
 			# current_work_experience = self.get_work_experience()
 			current_work_experience, total_working_days, start_date, end_date = self.get_work_experience()
 
-		gratuity_amount = self.get_gratuity_amount(current_work_experience)
+		gratuity_amount, slips_detail = self.get_gratuity_amount(current_work_experience)
 
 		# return {"current_work_experience": current_work_experience, "amount": gratuity_amount}
 		return {
@@ -223,6 +224,7 @@ class Gratuity(AccountsController):
 			"total_working_days": total_working_days,
 			"start_date": start_date,
 			"end_date": end_date,
+			"slips_detail": slips_detail,
 		}
 
 	def get_work_experience(self) -> float:
@@ -246,11 +248,16 @@ class Gratuity(AccountsController):
 		return work_experience or 0, total_working_days or 0, start_date or 0, end_date or 0
 
 	def get_total_working_days(self) -> float:
-		date_of_joining, relieving_date, previous_employee = frappe.db.get_value(
-				"Employee", self.employee, ["date_of_joining", "relieving_date", "custom_previous_employee"]
+		date_of_joining, relieving_date, previous_employee, employee_full_name = frappe.db.get_value(
+				"Employee", self.employee, ["date_of_joining", "relieving_date", "custom_previous_employee", "full_name"]
 			)
+  
+		if date_of_joining is None:
+			frappe.throw(f"El empleado { employee_full_name } no tiene fecha de ingreso registrada.")
+
 		if self.custom_extraordinary_payroll:
-			date_of_joining, relieving_date = [self.custom_start_date, self.custom_end_date]
+			date_of_joining = self.custom_start_date
+			relieving_date = self.custom_end_date
 
 		# since_the_most_recent
 		self.gratuity_rule_doc = frappe.get_doc("Gratuity Rule", self.gratuity_rule)
@@ -259,7 +266,9 @@ class Gratuity(AccountsController):
 			month_number = int(self.gratuity_rule_doc.since_the_most_recent.split(".")[0])
 			year = relieving_date.year if relieving_date.month >= month_number else relieving_date.year - 1
 			most_recent_month = datetime(year, month_number, 1)
-			date_of_joining = most_recent_month.strftime("%Y-%m-%d")
+			start_since_the_most_recent = most_recent_month.strftime("%Y-%m-%d")
+			if start_since_the_most_recent < date_of_joining.strftime("%Y-%m-%d"):
+				date_of_joining = start_since_the_most_recent
 
 		employees = [self.employee]
 		if previous_employee:
@@ -268,7 +277,7 @@ class Gratuity(AccountsController):
 		)
 			employees.append(previous_employee)
 
-		if not relieving_date:
+		if not relieving_date and self.custom_extraordinary_payroll == 0:
 			frappe.throw(
 				_("Please set Relieving Date for employee: {0}").format(
 					bold(get_link_to_form("Employee", self.employee))
@@ -276,6 +285,7 @@ class Gratuity(AccountsController):
 			)
 
 		total_working_days = (get_datetime(relieving_date) - get_datetime(date_of_joining)).days
+		total_days = total_working_days
 
 		payroll_based_on = frappe.db.get_single_value("Payroll Settings", "payroll_based_on") or "Leave"
 
@@ -298,6 +308,9 @@ class Gratuity(AccountsController):
 
 			total_working_days = twd[0][0] if twd and twd[0][0] else 0
 
+		if total_days > total_working_days:
+			frappe.throw(f"Verifique la cantidad de días trabajados del empleado { employee_full_name } en la información de Apertura.")
+  
 		return total_working_days, date_of_joining, relieving_date
 
 	def get_non_working_days(self, relieving_date: str, status: str) -> float:
@@ -316,10 +329,8 @@ class Gratuity(AccountsController):
 		return record[0].total_lwp if len(record) else 0
 
 	def get_gratuity_amount(self, experience: float) -> float:
-		total_component_amount = self.get_total_component_amount()
+		total_component_amount, slips_detail = self.get_total_component_amount()
 		calculate_amount_based_on = self.gratuity_settings.calculate_gratuity_amount_based_on
-
-		last_slabs = self.gratuity_settings.last_slabs
 
 		gratuity_amount = 0
 		slabs = self.get_gratuity_rule_slabs()
@@ -346,33 +357,7 @@ class Gratuity(AccountsController):
 					)
 					slab_found = True
 					break
-
-			elif calculate_amount_based_on == "Last Slabs":
-				# Calcular el promedio de los últimos N slabs
-				total_earnings = 0
-				slabs_considered = 0
-
-				# Obtener los últimos N slabs
-				slab_index = slabs.index(slab)  # Obtiene el índice del slab actual en la lista
-				start_index = max(slab_index - last_slabs + 1, 0)  # Asegúrate de no ir fuera de la lista
-
-				for i in range(
-					start_index, slab_index + 1
-				):  # Considera los N slabs anteriores hasta el actual
-					current_slab = slabs[i]
-					if self._is_experience_within_slab(current_slab, experience):
-						total_earnings += current_slab.fraction_of_applicable_earnings
-						slabs_considered += 1
-
-				if slabs_considered > 0:
-					average_fraction = total_earnings / slabs_considered
-					gratuity_amount = total_component_amount * experience * average_fraction
-					slab_found = True
-
-				if slab_found:
-					break
-
-				# completed more years than the current slab, so consider fraction for current slab too
+ 	
 				if self._is_experience_beyond_slab(slab, experience):
 					gratuity_amount += (
 						(slab.to_year - slab.from_year)
@@ -388,7 +373,7 @@ class Gratuity(AccountsController):
 					)
 					slab_found = True
 					break
-
+    
 		if not slab_found:
 			frappe.throw(
 				_(
@@ -396,34 +381,39 @@ class Gratuity(AccountsController):
 				).format(bold(self.gratuity_rule))
 			)
 
-		return flt(gratuity_amount, self.precision("amount"))
+		return flt(gratuity_amount, self.precision("amount")), slips_detail
 
 	def get_total_component_amount(self) -> float:
 		applicable_earning_components = self.get_applicable_components()
-		salary_slip = get_last_salary_slip(self.employee)
-		if not salary_slip:
+		salary_slips = get_last_salary_slips(self.employee, self.gratuity_rule)
+		if not salary_slips:
 			frappe.throw(_("No Salary Slip found for Employee: {0}").format(bold(self.employee)))
 
-		# consider full payment days for calculation as last month's salary slip
-		# might have less payment days as per attendance, making it non-deterministic
-		salary_slip.payment_days = salary_slip.total_working_days
-		salary_slip.calculate_net_pay()
-
+		slips_detail = []
 		total_amount = 0
-		component_found = False
-		for row in salary_slip.earnings:
-			if row.salary_component in applicable_earning_components:
-				total_amount += flt(row.amount)
-				component_found = True
+		for salary_slip in salary_slips:
+			# consider full payment days for calculation as last month's salary slip
+			# might have less payment days as per attendance, making it non-deterministic
+			salary_slip.payment_days = salary_slip.total_working_days
+			salary_slip.calculate_net_pay()
+			component_found = False
+   
+			for row in salary_slip.earnings:
+				if row.salary_component in applicable_earning_components:
+					total_amount += flt(row.amount)
+					component_found = True
+					slips_detail.setdefault(salary_slip.name, {}).setdefault(salary_slip.end_date, {}).setdefault(row.salary_component, flt(row.amount))
 
-		if not component_found:
-			frappe.throw(
-				_("No applicable Earning component found in last salary slip for Gratuity Rule: {0}").format(
-					bold(get_link_to_form("Gratuity Rule", self.gratuity_rule))
-				)
+			if not component_found:
+				frappe.throw(
+					_("No applicable Earning component found in last salary slip for Gratuity Rule: {0}").format(
+						bold(get_link_to_form("Gratuity Rule", self.gratuity_rule))
+					)
 			)
+	
+		total_amount = total_amount / len(salary_slips)
 
-		return total_amount
+		return total_amount, slips_detail
 
 	def get_applicable_components(self) -> list[str]:
 		applicable_earning_components = frappe.get_all(
@@ -453,9 +443,41 @@ class Gratuity(AccountsController):
 		return bool(slab.from_year < experience and (slab.to_year < experience and slab.to_year != 0))
 
 
-def get_last_salary_slip(employee: str) -> dict | None:
-	salary_slip = frappe.db.get_value(
-		"Salary Slip", {"employee": employee, "docstatus": 1}, order_by="start_date desc"
+def get_last_salary_slips(employee: str, gratuity: str) -> dict | None:
+	from datetime import datetime
+	from dateutil.relativedelta import relativedelta
+
+	last_slips = frappe.get_value("Gratuity Rule", gratuity, "custom_last_slips")
+	if not last_slips > 0:
+		last_slips = 1
+
+	most_recent_slip = frappe.db.get_value(
+		"Salary Slip",
+		{"employee": employee, "docstatus": 1},
+		["start_date"],
+		order_by="start_date DESC",
+		limit=1
 	)
-	if salary_slip:
-		return frappe.get_doc("Salary Slip", salary_slip)
+
+	if most_recent_slip:
+		fecha_reciente = datetime.strptime(most_recent_slip[0], '%Y-%m-%d')
+		
+		fecha_limite = fecha_reciente - relativedelta(months=6)
+		fecha_limite = fecha_limite.replace(day=1)
+
+		fecha_limite_str = fecha_limite.strftime('%Y-%m-%d')
+
+		salary_slips = frappe.db.get_all(
+			"Salary Slip",
+			filters={
+				"employee": employee,
+				"docstatus": 1,
+				"start_date": [">=", fecha_limite_str] 
+			},
+			order_by="start_date DESC",
+			as_dict=True
+		)
+	else:
+		salary_slips = []
+
+	return salary_slips
