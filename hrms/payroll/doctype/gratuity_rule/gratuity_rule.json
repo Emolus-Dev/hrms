@@ -38,7 +38,6 @@
    "reqd": 1
   },
   {
-   "depends_on": "eval:doc.based_on==\"Components\"",
    "description": "Salary components should be part of the Salary Structure.",
    "fieldname": "applicable_earnings_component",
    "fieldtype": "Table MultiSelect",
@@ -120,7 +119,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-08 06:19:32.727573",
+ "modified": "2025-02-08 10:47:03.994074",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Gratuity Rule",
