@@ -11,6 +11,7 @@ from frappe.utils import cstr, flt, get_datetime, get_link_to_form
 from erpnext.accounts.general_ledger import make_gl_entries
 from erpnext.controllers.accounts_controller import AccountsController
 
+from collections import defaultdict
 
 class Gratuity(AccountsController):
 	def validate(self):
@@ -391,6 +392,8 @@ class Gratuity(AccountsController):
 
 		slips_detail = []
 		total_amount = 0
+		monthly_salaries = defaultdict(list)
+  
 		for salary_slip in salary_slips:
 			# consider full payment days for calculation as last month's salary slip
 			# might have less payment days as per attendance, making it non-deterministic
@@ -410,10 +413,24 @@ class Gratuity(AccountsController):
 						bold(get_link_to_form("Gratuity Rule", self.gratuity_rule))
 					)
 			)
-	
-		total_amount = total_amount / len(salary_slips)
+			
+			# Obtener el mes y año de la fecha de inicio
+			month_year = salary_slip["start_date"].strftime("%Y-%m")  # Formato: 'YYYY-MM'
+			monthly_salaries[month_year].append(salary_slip["gross_pay"])
 
-		return total_amount, slips_detail
+		average_monthly_salary = 0
+		total_months = len(monthly_salaries)
+
+		for salaries in monthly_salaries.values():
+			average_monthly_salary += sum(salaries) / len(salaries)
+
+		# Calcular el promedio de los promedios mensuales
+		if total_months > 0:
+			average_monthly_salary = average_monthly_salary / total_months
+		else:
+			average_monthly_salary = 0  # Si no hay recibos de salario
+
+		return average_monthly_salary, slips_detail
 
 	def get_applicable_components(self) -> list[str]:
 		applicable_earning_components = frappe.get_all(
@@ -444,7 +461,6 @@ class Gratuity(AccountsController):
 
 
 def get_last_salary_slips(employee: str, gratuity: str, end_date: str) -> dict | None:
-	from datetime import datetime
 	from dateutil.relativedelta import relativedelta
 
 	last_slips = frappe.get_value("Gratuity Rule", gratuity, "custom_last_slips")
