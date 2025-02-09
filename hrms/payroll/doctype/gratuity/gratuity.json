@@ -170,6 +170,7 @@
    "default": "1",
    "fieldname": "pay_via_salary_slip",
    "fieldtype": "Check",
+   "hidden": 1,
    "label": "Pay via Salary Slip"
   },
   {
@@ -201,7 +202,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-02-09 09:52:17.033158",
+ "modified": "2025-02-09 09:53:43.706257",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Gratuity",
