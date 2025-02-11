@@ -22,7 +22,7 @@ class Gratuity(AccountsController):
 		self.amount = data["amount"]
 		self.custom_slips_detail = str(data["slips_detail"])
 		self.set_status()
-  
+
 	@property
 	def gratuity_settings(self):
 		if not hasattr(self, "_gratuity_settings"):
@@ -263,10 +263,12 @@ class Gratuity(AccountsController):
 		# since_the_most_recent
 		self.gratuity_rule_doc = frappe.get_doc("Gratuity Rule", self.gratuity_rule)
 
-		month_number = int(self.gratuity_rule_doc.since_the_most_recent.split(".")[0])
-		year = relieving_date.year if relieving_date.month >= month_number else relieving_date.year - 1
-		most_recent_month = datetime(year, month_number, 1)
-		start_since_the_most_recent = most_recent_month.strftime("%Y-%m-%d")
+		if self.gratuity_rule_doc.based_on == "Components":
+			month_number = int(self.gratuity_rule_doc.since_the_most_recent.split(".")[0])
+			year = relieving_date.year if relieving_date.month >= month_number else relieving_date.year - 1
+			most_recent_month = datetime(year, month_number, 1)
+
+			start_since_the_most_recent = most_recent_month.strftime("%Y-%m-%d")
 
 		if self.custom_extraordinary_payroll:
 			if not self.custom_start_date:
@@ -275,7 +277,6 @@ class Gratuity(AccountsController):
 				one_year = datetime(year+1, month_number-1, 1)
 				self.custom_end_date = one_year.strftime("%Y-%m-%d")
 
-		else:
 			date_of_joining = self.custom_start_date
 			relieving_date = self.custom_end_date
 
@@ -392,16 +393,15 @@ class Gratuity(AccountsController):
 		slab_found = False
 		years_left = experience
 
-		self.get_last_salary_structure_assignment()
-
 		for slab in slabs:
 			if calculate_amount_based_on == "Current Slab":
 				if self._is_experience_within_slab(slab, experience):
 					gratuity_amount = (
 						total_component_amount * experience * slab.fraction_of_applicable_earnings
 					)
+					self.get_last_salary_structure_assignment()
 
-					if based_on == "Pending Leaves":
+					if based_on == "Pending Leaves" and flt(self.custom_total_working_days) > 0:
 						if self.salary_structure_values.payroll_frequency == "Monthly":
 							working_days = 30
 						elif self.salary_structure_values.payroll_frequency == "Weekly":
@@ -414,7 +414,7 @@ class Gratuity(AccountsController):
 							working_days = 1
 
 						gratuity_amount = (
-							(total_component_amount / working_days * slab.fraction_of_applicable_earnings) *  self.custom_total_working_days
+							(total_component_amount / working_days * slab.fraction_of_applicable_earnings) * self.custom_total_working_days
 						)
 					if slab.fraction_of_applicable_earnings:
 						slab_found = True
