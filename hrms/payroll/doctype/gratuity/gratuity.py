@@ -130,7 +130,7 @@ class Gratuity(AccountsController):
 
 	def create_full_and_final_statement(self):
 		full_and_final_statement_exists = frappe.get_all(
-			"Full and Final Statement", 
+			"Full and Final Statement",
 			filters=[
 				["employee", "=", self.employee],
 				["company", "=", self.company],
@@ -138,6 +138,9 @@ class Gratuity(AccountsController):
 			],
 			fields=["name", "docstatus"]
 		)
+
+		gratuity_component = frappe.db.get_value("Gratuity Rule", self.gratuity_rule, "custom_salary_component")
+		gratuity_component_account = frappe.db.get_value("Salary Component Account", {"parent": gratuity_component, "company": self.company}, "account")
 		if not full_and_final_statement_exists:
 			full_and_final_statement = frappe.new_doc("Full and Final Statement")
 			full_and_final_statement.employee = self.employee
@@ -148,10 +151,11 @@ class Gratuity(AccountsController):
 				"Employee", self.employee, ["relieving_date"]
 			)
 			full_and_final_statement.append("payables", {
-				"component": self.gratuity_rule, 
-				"reference_document_type": "Gratuity", 
+				"component": gratuity_component,
+				"reference_document_type": "Gratuity",
 				"reference_document": self.name,
-				"amount": self.amount
+				"amount": self.amount,
+				"account": gratuity_component_account
 			})
 			full_and_final_statement.insert(ignore_mandatory=True, ignore_links=True)
 		else:
@@ -164,30 +168,28 @@ class Gratuity(AccountsController):
 					if self.gratuity_rule not in existing_components:
 						# Agregar si no existe
 						full_and_final_statement.append("payables", {
-							"component": self.gratuity_rule, 
-							"reference_document_type": "Gratuity", 
+							"component": self.gratuity_rule,
+							"reference_document_type": "Gratuity",
 							"reference_document": self.name,
-							"amount": self.amount
+							"amount": self.amount,
+							"account": gratuity_component_account
 						})
 					else:
 						# Opcional: Eliminar duplicados antes de guardar
 						unique_payables = []
 						seen_components = set()
-						
+
 						for row in full_and_final_statement.payables:
 							if row.component not in seen_components:
 								unique_payables.append(row)
 								seen_components.add(row.component)
-						
+
 						full_and_final_statement.payables = unique_payables  # Asigna solo elementos únicos
 
 					# Guardar cambios
 					full_and_final_statement.save()
 				else:
 					frappe.throw(f"A Full and Final Statement already exists for employee: {self.employee}")
-					
-				
-    
 
 	def set_total_advance_paid(self):
 		gle = frappe.qb.DocType("GL Entry")
@@ -318,7 +320,7 @@ class Gratuity(AccountsController):
 			twd = frappe.db.sql(total_working_days_query, (tuple(employees), date_of_joining, relieving_date))
 
 			total_working_days = twd[0][0] if twd and twd[0][0] else 0
-   
+
 		if self.gratuity_rule_doc.based_on == "Pending Leaves":
 			allocations = frappe.db.get_all(
 				"Leave Allocation",
