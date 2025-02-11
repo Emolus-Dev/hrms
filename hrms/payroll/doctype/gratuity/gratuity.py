@@ -11,6 +11,7 @@ from frappe.utils import cstr, flt, get_datetime, get_link_to_form
 from erpnext.accounts.general_ledger import make_gl_entries
 from erpnext.controllers.accounts_controller import AccountsController
 
+
 class Gratuity(AccountsController):
 	def validate(self):
 		data = self.calculate_work_experience_and_amount()
@@ -77,7 +78,8 @@ class Gratuity(AccountsController):
 	def get_gl_entries(self):
 		gl_entry = []
 		# payable entry
-		if self.amount:
+		# if self.amount:
+		if self.amount and self.custom_pay_via == "Journal Entry":
 			gl_entry.append(
 				self.get_gl_dict(
 					{
@@ -109,7 +111,7 @@ class Gratuity(AccountsController):
 				)
 			)
 		else:
-			frappe.throw(_("Total Amount cannot be zero"))
+			frappe.msgprint(_("Total Amount cannot be zero"))
 
 		return gl_entry
 
@@ -252,22 +254,30 @@ class Gratuity(AccountsController):
 		date_of_joining, relieving_date, previous_employee, employee_full_name = frappe.db.get_value(
 				"Employee", self.employee, ["date_of_joining", "relieving_date", "custom_previous_employee", "employee_name"]
 			)
-  
+
 		if date_of_joining is None:
 			frappe.throw(f"El empleado { employee_full_name } no tiene fecha de ingreso registrada.")
-
-		if self.custom_extraordinary_payroll:
-			date_of_joining = self.custom_start_date
-			relieving_date = self.custom_end_date
 
 		# since_the_most_recent
 		self.gratuity_rule_doc = frappe.get_doc("Gratuity Rule", self.gratuity_rule)
 
+		month_number = int(self.gratuity_rule_doc.since_the_most_recent.split(".")[0])
+		year = relieving_date.year if relieving_date.month >= month_number else relieving_date.year - 1
+		most_recent_month = datetime(year, month_number, 1)
+		start_since_the_most_recent = most_recent_month.strftime("%Y-%m-%d")
+
+		if self.custom_extraordinary_payroll:
+			if not self.custom_start_date:
+				self.custom_start_date = start_since_the_most_recent
+			if not self.custom_end_date:
+				one_year = datetime(year+1, month_number-1, 1)
+				self.custom_end_date = one_year.strftime("%Y-%m-%d")
+
+		else:
+			date_of_joining = self.custom_start_date
+			relieving_date = self.custom_end_date
+
 		if self.gratuity_rule_doc.since_the_most_recent:
-			month_number = int(self.gratuity_rule_doc.since_the_most_recent.split(".")[0])
-			year = relieving_date.year if relieving_date.month >= month_number else relieving_date.year - 1
-			most_recent_month = datetime(year, month_number, 1)
-			start_since_the_most_recent = most_recent_month.strftime("%Y-%m-%d")
 			if start_since_the_most_recent < date_of_joining.strftime("%Y-%m-%d"):
 				date_of_joining = start_since_the_most_recent
 
@@ -354,9 +364,24 @@ class Gratuity(AccountsController):
 		record = frappe.get_all("Attendance", filters=filters, fields=["COUNT(*) as total_lwp"])
 		return record[0].total_lwp if len(record) else 0
 
+	def get_last_salary_structure_assignment(self) -> dict:
+		self.salary_structure = frappe.db.get_value(
+			"Salary Structure Assignment",
+			{"employee": self.employee, "docstatus": 1},
+			["salary_structure"],
+			order_by="from_date DESC",
+			as_dict=True
+		)
+		self.salary_structure_values = frappe.db.get_value(
+			"Salary Structure",
+			{"name": self.salary_structure.salary_structure},
+			["payroll_frequency"],
+			as_dict=True
+		)
+
 	def get_gratuity_amount(self, experience: float) -> float:
 		total_component_amount, slips_detail = self.get_total_component_amount()
-		
+
 		calculate_amount_based_on = self.gratuity_settings.calculate_gratuity_amount_based_on
 		based_on = self.gratuity_settings.based_on
 
@@ -364,17 +389,30 @@ class Gratuity(AccountsController):
 		slabs = self.get_gratuity_rule_slabs()
 		slab_found = False
 		years_left = experience
-		
+
+		self.get_last_salary_structure_assignment()
+
 		for slab in slabs:
 			if calculate_amount_based_on == "Current Slab":
 				if self._is_experience_within_slab(slab, experience):
 					gratuity_amount = (
 						total_component_amount * experience * slab.fraction_of_applicable_earnings
 					)
-					
+
 					if based_on == "Pending Leaves":
+						if self.salary_structure_values.payroll_frequency == "Monthly":
+							working_days = 30
+						elif self.salary_structure_values.payroll_frequency == "Weekly":
+							working_days = 7
+						elif self.salary_structure_values.payroll_frequency == "Fortnightly":
+							working_days = 14
+						elif self.salary_structure_values.payroll_frequency == "Bimonthly":
+							working_days = 15
+						elif self.salary_structure_values.payroll_frequency == "Daily":
+							working_days = 1
+
 						gratuity_amount = (
-							(total_component_amount / self.gratuity_settings.total_working_days_per_year * slab.fraction_of_applicable_earnings) *  self.custom_total_working_days
+							(total_component_amount / working_days * slab.fraction_of_applicable_earnings) *  self.custom_total_working_days
 						)
 					if slab.fraction_of_applicable_earnings:
 						slab_found = True
@@ -390,7 +428,7 @@ class Gratuity(AccountsController):
 					)
 					slab_found = True
 					break
- 	
+
 				if self._is_experience_beyond_slab(slab, experience):
 					gratuity_amount += (
 						(slab.to_year - slab.from_year)

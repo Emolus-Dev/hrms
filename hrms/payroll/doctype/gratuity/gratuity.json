@@ -178,7 +178,7 @@
    "fieldname": "payroll_date",
    "fieldtype": "Date",
    "label": "Payroll Date",
-   "mandatory_depends_on": "pay_via_salary_slip"
+   "mandatory_depends_on": "eval:doc.pay_via==\"Salary Slip\""
   },
   {
    "depends_on": "eval:doc.pay_via == 'Salary Slip' || doc.pay_via == 'Payroll Entry'",
@@ -202,7 +202,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-02-09 09:57:20.681971",
+ "modified": "2025-02-11 08:15:52.475323",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Gratuity",
