@@ -109,6 +109,7 @@ frappe.ui.form.on("Expense Claim", {
 				__("Create"),
 			);
 		}
+
 	},
 
 	validate: function (frm) {
@@ -171,10 +172,18 @@ frappe.ui.form.on("Expense Claim", {
 		let total_claimed_amount = 0;
 		let total_sanctioned_amount = 0;
 
-		frm.doc.expenses.forEach((row) => {
-			total_claimed_amount += row.amount;
-			total_sanctioned_amount += row.sanctioned_amount;
+		frm.doc.felapp_expense_claim_invoices.forEach((row) => {
+			total_claimed_amount += flt(row.paid_amount);
+			total_sanctioned_amount += flt(row.paid_amount);
+			total_claimed_amount += flt(row.outstanding_amount);
+			total_sanctioned_amount += flt(row.outstanding_amount);
 		});
+
+		frm.doc.expenses.forEach((row) => {
+			total_claimed_amount += flt(row.amount);
+			total_sanctioned_amount += flt(row.sanctioned_amount);
+		});
+		
 
 		frm.set_value(
 			"total_claimed_amount",
@@ -184,6 +193,7 @@ frappe.ui.form.on("Expense Claim", {
 			"total_sanctioned_amount",
 			flt(total_sanctioned_amount, precision("total_sanctioned_amount")),
 		);
+		frm.refresh_fields();
 	},
 
 	calculate_grand_total: function (frm) {
@@ -200,7 +210,18 @@ frappe.ui.form.on("Expense Claim", {
 	},
 
 	update_employee_advance_claimed_amount: function (frm) {
-		let amount_to_be_allocated = frm.doc.grand_total;
+		//let amount_to_be_allocated = frm.doc.grand_total;
+		let amount_to_be_allocated = 0;
+		frm.doc.expenses.forEach((row) => {
+			amount_to_be_allocated += row.sanctioned_amount;
+		});
+		
+		frm.doc.felapp_expense_claim_invoices.forEach((row) => {
+			amount_to_be_allocated += flt(row.paid_amount);
+			amount_to_be_allocated += flt(row.outstanding_amount);
+		});
+
+		//let amount_to_be_allocated = 10;
 		$.each(frm.doc.advances || [], function (i, advance) {
 			if (amount_to_be_allocated >= advance.unclaimed_amount) {
 				advance.allocated_amount = frm.doc.advances[i].unclaimed_amount;
@@ -211,6 +232,9 @@ frappe.ui.form.on("Expense Claim", {
 			}
 			frm.refresh_field("advances");
 		});
+
+		
+
 	},
 
 	make_payment_entry: function (frm) {
@@ -358,16 +382,38 @@ frappe.ui.form.on("Expense Claim Detail", {
 	amount: function (frm, cdt, cdn) {
 		var child = locals[cdt][cdn];
 		frappe.model.set_value(cdt, cdn, "sanctioned_amount", child.amount);
+		
 	},
 
 	sanctioned_amount: function (frm, cdt, cdn) {
 		frm.trigger("calculate_total");
 		frm.trigger("get_taxes");
 		frm.trigger("calculate_grand_total");
+		frm.trigger("calculate_total");
 	},
 
 	cost_center: function (frm, cdt, cdn) {
 		erpnext.utils.copy_value_in_all_rows(frm.doc, cdt, cdn, "expenses", "cost_center");
+	},
+});
+
+frappe.ui.form.on("Expense Claim Detail", {
+	expenses_remove: function(frm, cdt, cdn) {
+        frm.trigger("calculate_total");
+		frm.trigger("get_taxes");
+		frm.trigger("calculate_grand_total");
+    }
+});
+frappe.ui.form.on("FelApp Expense Claim Invoices", {
+	paid_amount: function (frm, cdt, cdn) {
+		frm.trigger("calculate_total");
+		frm.trigger("get_taxes");
+		frm.trigger("calculate_grand_total");
+	},
+	felapp_expense_claim_invoices_remove: function (frm, cdt, cdn) {
+		frm.trigger("calculate_total");
+		frm.trigger("get_taxes");
+		frm.trigger("calculate_grand_total");
 	},
 });
 
