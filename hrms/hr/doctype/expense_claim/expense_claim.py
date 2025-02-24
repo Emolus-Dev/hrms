@@ -118,19 +118,19 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 			frappe.throw(_("""Approval Status must be 'Approved' or 'Rejected'"""))
 
 		total_sanctioned_amount = sum(
-		 	advance.sanctioned_amount for expense in self.expenses
+		 	expense.sanctioned_amount for expense in self.expenses
 		)
 
 		self.update_task_and_project()
-    
+
 		if self.is_paid == 0 and total_sanctioned_amount > 0:
 			self.make_gl_entries()
-   
+
 		total_outstanding_amount = sum(
 		 	felapp_expense_claim_invoice.outstanding_amount for felapp_expense_claim_invoice in self.felapp_expense_claim_invoices
 		)
 		if total_outstanding_amount > 0:
-			self.make_payment_entries()	
+			self.make_payment_entries()
 
 		update_reimbursed_amount(self)
 
@@ -284,48 +284,56 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		return gl_entry
 
 	def make_payment_entries(self, cancel=False):
-		payment_entries = self.get_payment_entries()
-		make_payment_entries(payment_entries, cancel)
+		self.get_payment_entries()
+		# self.make_payment_entries_for_expense_claim(payment_entries, cancel)
 
 
 	def get_payment_entries(self):
+		from erpnext.accounts.doctype.journal_entry.journal_entry import get_payment_entry_against_invoice
 		payment_entry = []
 		for expense_invoice in self.felapp_expense_claim_invoices:
 			purchase_invoice = frappe.get_doc("Purchase Invoice", expense_invoice.purchase_invoice)
 			if purchase_invoice.status in ["Overdue", "Unpaid", "Partly Paid"] and purchase_invoice.outstanding_amount >= expense_invoice.outstanding_amount:
-				payment_entry = frappe.get_doc({
-					"doctype": "Payment Entry",  # Corrige "Doctype" a "doctype"
-					"docstatus": 1,
-					"payment_type": "Pay",
-					"party_type": "Supplier",
-					"party": expense_invoice.supplier,
-					"mode_of_payment": self.mode_of_payment,
-					"posting_date": self.posting_date,
-					"received_amount": expense_invoice.outstanding_amount,
-					#los siguientes campos se deben generar dinámicamente.
-					#"source_exchange_rate": 1,
-					#"target_exchange_rate": 1,
-					# "paid_from": "",
-					# "paid_to": "",
-					"references": [{
-						"reference_doctype": "Purchase Invoice",
-						"reference_name": purchase_invoice.name,
-						"allocated_amount": expense_invoice.outstanding_amount
-					}],
-					"paid_amount": expense_invoice.outstanding_amount,
-					"reference_no": self.name,
-					"purchase_invoice": purchase_invoice.posting_date
-				})
-				payment_entry.insert(ignore_permissions=True,ignore_mandatory=True)
+				# payment_entry = frappe.get_doc({
+				# 	"doctype": "Payment Entry",  # Corrige "Doctype" a "doctype"
+				# 	"docstatus": 1,
+				# 	"payment_type": "Pay",
+				# 	"party_type": "Supplier",
+				# 	"party": expense_invoice.supplier,
+				# 	"posting_date": self.posting_date,
+				# 	"received_amount": expense_invoice.outstanding_amount,
+				# 	"mode_of_payment": self.custom_mode_of_payment,
+				# 	# los siguientes campos se deben generar dinámicamente.
+				# 	# "source_exchange_rate": 1,
+				# 	#"target_exchange_rate": 1,
+				# 	# "paid_from": "",
+				# 	# "paid_to": "",
+				# 	"references": [{
+				# 		"reference_doctype": "Purchase Invoice",
+				# 		"reference_name": purchase_invoice.name,
+				# 		"allocated_amount": expense_invoice.outstanding_amount
+				# 	}],
+				# 	"paid_amount": expense_invoice.outstanding_amount,
+				# 	"reference_no": self.name,
+				# 	"purchase_invoice": purchase_invoice.posting_date
+				# })
+				# payment_entry.insert(ignore_permissions=True,ignore_mandatory=True)
+
+				payment_entry = get_payment_entry_against_invoice("Purchase Invoice", expense_invoice.purchase_invoice)
+				payment_entry.docstatus = 0
+				payment_entry.insert(ignore_permissions=True)
 				if payment_entry:
 					frappe.db.commit()
-					# preferiría no usar db.commit se puede actualizar los valores dinamicamente por ejemplo frappe.get_cached_doc? 
+					# preferiría no usar db.commit se puede actualizar los valores dinamicamente por ejemplo frappe.get_cached_doc?
 					#actualiza los valore de la factura.
-					expense_invoice.status = frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "status")
-					expense_invoice.outstanding_amount = frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "outstanding_amount")
-					expense_invoice.payment_entry_reference = payment_entry.get("references")[0].allocated_amount
+
+					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "status", frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "status"))
+					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "outstanding_amount", frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "outstanding_amount"))
+					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "payment_entry_reference", payment_entry.get("references")[0].allocated_amount)
+					frappe.db.commit()
+
 			elif purchase_invoice.outstanding_amount <= expense_invoice.outstanding_amount:
-				frappe.throw(f"El monto pendiente de la factura { purchase_invoice.name } del Proveedor  { purchase_invoice.supplier } es menor que el monto a aplicar de { expense_invoice.paid_amount }")		 
+				frappe.throw(f"El monto pendiente de la factura { purchase_invoice.name } del Proveedor  { purchase_invoice.supplier } es menor que el monto a aplicar de { expense_invoice.paid_amount }")
 		return payment_entry
 
 
