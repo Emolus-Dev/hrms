@@ -341,8 +341,9 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 					frappe.db.commit()  # para el update de la fila del reclamo de gastos
 
 			elif flt(purchase_invoice.outstanding_amount) < flt(expense_invoice.outstanding_amount):
-				frappe.log_error(title="test", message=f"{purchase_invoice.outstanding_amount} <= {expense_invoice.outstanding_amount}")
 				frappe.msgprint(f"El monto pendiente de la factura { purchase_invoice.name } del Proveedor  { purchase_invoice.supplier } es menor que el monto a aplicar de { expense_invoice.paid_amount }")
+
+		self.is_paid = 1
 		return payment_entry
 
 
