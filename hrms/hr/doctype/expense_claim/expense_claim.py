@@ -289,7 +289,8 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 
 
 	def get_payment_entries(self):
-		from erpnext.accounts.doctype.journal_entry.journal_entry import get_payment_entry_against_invoice
+		from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+		import json
 		payment_entry = []
 		for expense_invoice in self.felapp_expense_claim_invoices:
 			purchase_invoice = frappe.get_doc("Purchase Invoice", expense_invoice.purchase_invoice)
@@ -319,9 +320,14 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 				# })
 				# payment_entry.insert(ignore_permissions=True,ignore_mandatory=True)
 
-				payment_entry = get_payment_entry_against_invoice("Purchase Invoice", expense_invoice.purchase_invoice)
+				payment_entry = get_payment_entry("Purchase Invoice", expense_invoice.purchase_invoice)
 				payment_entry.docstatus = 0
-				payment_entry.insert(ignore_permissions=True)
+				payment_entry.posting_date = frappe.utils.nowdate()
+				# payment_entry.insert(ignore_permissions=True)
+				frappe.log_error(title="test", message=json.dumps(payment_entry, indent=4, default=str))
+				frappe.get_doc(payment_entry).insert(ignore_permissions=True)
+				frappe.db.commit()
+
 				if payment_entry:
 					frappe.db.commit()
 					# preferiría no usar db.commit se puede actualizar los valores dinamicamente por ejemplo frappe.get_cached_doc?
@@ -332,8 +338,9 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "payment_entry_reference", payment_entry.get("references")[0].allocated_amount)
 					frappe.db.commit()
 
-			elif purchase_invoice.outstanding_amount <= expense_invoice.outstanding_amount:
-				frappe.throw(f"El monto pendiente de la factura { purchase_invoice.name } del Proveedor  { purchase_invoice.supplier } es menor que el monto a aplicar de { expense_invoice.paid_amount }")
+			elif flt(purchase_invoice.outstanding_amount) < flt(expense_invoice.outstanding_amount):
+				frappe.log_error(title="test", message=f"{purchase_invoice.outstanding_amount} <= {expense_invoice.outstanding_amount}")
+				frappe.msgprint(f"El monto pendiente de la factura { purchase_invoice.name } del Proveedor  { purchase_invoice.supplier } es menor que el monto a aplicar de { expense_invoice.paid_amount }")
 		return payment_entry
 
 
