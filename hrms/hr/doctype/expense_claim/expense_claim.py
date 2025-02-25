@@ -147,7 +147,7 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		if self.payable_account:
 			self.make_gl_entries(cancel=True)
 
-		update_reimbursed_amount(cancel=True)
+		update_reimbursed_amount(self)  # porque tenia el parametro ,cancel=True ?
 
 		self.update_claimed_amount_in_employee_advance()
 		self.publish_update()
@@ -321,22 +321,24 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 				# payment_entry.insert(ignore_permissions=True,ignore_mandatory=True)
 
 				payment_entry = get_payment_entry("Purchase Invoice", expense_invoice.purchase_invoice)
-				payment_entry.docstatus = 0
+				payment_entry.docstatus = 1
 				payment_entry.posting_date = frappe.utils.nowdate()
+				payment_entry.reference_no = frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "bill_no")
+				payment_entry.reference_date = frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "posting_date")
 				# payment_entry.insert(ignore_permissions=True)
 				frappe.log_error(title="test", message=json.dumps(payment_entry, indent=4, default=str))
 				frappe.get_doc(payment_entry).insert(ignore_permissions=True)
-				frappe.db.commit()
 
 				if payment_entry:
-					frappe.db.commit()
+					frappe.db.commit()  # para el payment entry
 					# preferiría no usar db.commit se puede actualizar los valores dinamicamente por ejemplo frappe.get_cached_doc?
 					#actualiza los valore de la factura.
 
 					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "status", frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "status"))
 					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "outstanding_amount", frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "outstanding_amount"))
-					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "payment_entry_reference", payment_entry.get("references")[0].allocated_amount)
-					frappe.db.commit()
+					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "paid_amount", payment_entry.get("references")[0].allocated_amount)
+					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "payment_entry_reference", payment_entry.name)
+					frappe.db.commit()  # para el update de la fila del reclamo de gastos
 
 			elif flt(purchase_invoice.outstanding_amount) < flt(expense_invoice.outstanding_amount):
 				frappe.log_error(title="test", message=f"{purchase_invoice.outstanding_amount} <= {expense_invoice.outstanding_amount}")
@@ -685,7 +687,7 @@ def update_outstanding_amount_in_payment_entry(expense_claim: dict, pe_reference
 	"""updates outstanding amount back in Payment Entry reference"""
 	# TODO: refactor convoluted code after erpnext payment entry becomes extensible
 	outstanding_amount = get_outstanding_amount_for_claim(expense_claim, doc)
-	
+
 	frappe.db.set_value("Payment Entry Reference", pe_reference, "outstanding_amount", outstanding_amount)
 
 
