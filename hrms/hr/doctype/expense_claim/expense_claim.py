@@ -117,8 +117,20 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		if self.approval_status == "Draft":
 			frappe.throw(_("""Approval Status must be 'Approved' or 'Rejected'"""))
 
+		total_sanctioned_amount = sum(
+		 	expense.sanctioned_amount for expense in self.expenses
+		)
+
 		self.update_task_and_project()
-		self.make_gl_entries()
+
+		if self.is_paid == 0 and total_sanctioned_amount > 0:
+			self.make_gl_entries()
+
+		total_outstanding_amount = sum(
+		 	felapp_expense_claim_invoice.outstanding_amount for felapp_expense_claim_invoice in self.felapp_expense_claim_invoices
+		)
+		if total_outstanding_amount > 0:
+			self.make_payment_entries()
 
 		update_reimbursed_amount(self)
 
@@ -135,7 +147,7 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		if self.payable_account:
 			self.make_gl_entries(cancel=True)
 
-		update_reimbursed_amount(self)
+		update_reimbursed_amount(self)  # porque tenia el parametro ,cancel=True ?
 
 		self.update_claimed_amount_in_employee_advance()
 		self.publish_update()
@@ -171,15 +183,26 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 	def get_gl_entries(self):
 		gl_entry = []
 		self.validate_account_details()
-
+  
+		total_invoice_paid_amount = sum(
+		 	invoice.paid_amount for invoice in self.felapp_expense_claim_invoices
+		)
+	
+		total_invoice_outstanding_amount = sum(
+		 	invoice.outstanding_amount for invoice in self.felapp_expense_claim_invoices
+		)
+	
+		total_invoice_amount = total_invoice_paid_amount + total_invoice_outstanding_amount
+ 
+		total_sanctioned = sum(data.sanctioned_amount for data in self.expenses) 
 		# payable entry
 		if self.grand_total:
 			gl_entry.append(
 				self.get_gl_dict(
 					{
 						"account": self.payable_account,
-						"credit": self.grand_total,
-						"credit_in_account_currency": self.grand_total,
+						"credit": total_sanctioned,
+						"credit_in_account_currency": total_sanctioned,
 						"against": ",".join([d.default_account for d in self.expenses]),
 						"party_type": "Employee",
 						"party": self.employee,
@@ -192,7 +215,8 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 				)
 			)
 
-		# expense entries
+		# expense entrie
+	
 		for data in self.expenses:
 			gl_entry.append(
 				self.get_gl_dict(
@@ -213,8 +237,8 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 				self.get_gl_dict(
 					{
 						"account": data.advance_account,
-						"credit": data.allocated_amount,
-						"credit_in_account_currency": data.allocated_amount,
+						"credit": data.allocated_amount - total_invoice_amount,
+						"credit_in_account_currency": data.allocated_amount - total_invoice_amount,
 						"against": ",".join([d.default_account for d in self.expenses]),
 						"party_type": "Employee",
 						"party": self.employee,
@@ -226,15 +250,15 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 
 		self.add_tax_gl_entries(gl_entry)
 
-		if self.is_paid and self.grand_total:
+		if self.is_paid and self.grand_total and total_sanctioned > 0:
 			# payment entry
 			payment_account = get_bank_cash_account(self.mode_of_payment, self.company).get("account")
 			gl_entry.append(
 				self.get_gl_dict(
 					{
 						"account": payment_account,
-						"credit": self.grand_total,
-						"credit_in_account_currency": self.grand_total,
+						"credit": total_sanctioned,
+						"credit_in_account_currency": total_sanctioned,
 						"against": self.employee,
 					},
 					item=self,
@@ -248,8 +272,8 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 						"party_type": "Employee",
 						"party": self.employee,
 						"against": payment_account,
-						"debit": self.grand_total,
-						"debit_in_account_currency": self.grand_total,
+						"debit": total_sanctioned,
+						"debit_in_account_currency": total_sanctioned,
 						"against_voucher": self.name,
 						"against_voucher_type": self.doctype,
 					},
@@ -258,6 +282,46 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 			)
 
 		return gl_entry
+
+	def make_payment_entries(self, cancel=False):
+		self.get_payment_entries()
+		# self.make_payment_entries_for_expense_claim(payment_entries, cancel)
+
+
+	def get_payment_entries(self):
+		from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+		import json
+		payment_entry = []
+		for expense_invoice in self.felapp_expense_claim_invoices:
+			purchase_invoice = frappe.get_doc("Purchase Invoice", expense_invoice.purchase_invoice)
+			if purchase_invoice.status in ["Overdue", "Unpaid", "Partly Paid"] and purchase_invoice.outstanding_amount >= expense_invoice.outstanding_amount:
+
+				payment_entry = get_payment_entry("Purchase Invoice", expense_invoice.purchase_invoice)
+				payment_entry.docstatus = 1
+				payment_entry.posting_date = frappe.utils.nowdate()
+				payment_entry.reference_no = frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "bill_no")
+				payment_entry.reference_date = frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "posting_date")
+				# payment_entry.insert(ignore_permissions=True)
+				frappe.log_error(title="test", message=json.dumps(payment_entry, indent=4, default=str))
+				frappe.get_doc(payment_entry).insert(ignore_permissions=True)
+
+				if payment_entry:
+					frappe.db.commit()  # para el payment entry
+					# preferiría no usar db.commit se puede actualizar los valores dinamicamente por ejemplo frappe.get_cached_doc?
+					#actualiza los valore de la factura.
+
+					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "status", frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "status"))
+					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "outstanding_amount", frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "outstanding_amount"))
+					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "paid_amount", payment_entry.get("references")[0].allocated_amount)
+					frappe.db.set_value(expense_invoice.doctype, expense_invoice.name, "payment_entry_reference", payment_entry.name)
+					frappe.db.commit()  # para el update de la fila del reclamo de gastos
+
+			elif flt(purchase_invoice.outstanding_amount) < flt(expense_invoice.outstanding_amount):
+				frappe.msgprint(f"El monto pendiente de la factura { purchase_invoice.name } del Proveedor  { purchase_invoice.supplier } es menor que el monto a aplicar de { expense_invoice.paid_amount }")
+
+		self.is_paid = 1
+		return payment_entry
+
 
 	def add_tax_gl_entries(self, gl_entries):
 		# tax table gl entries
@@ -303,6 +367,18 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 
 			self.total_claimed_amount += flt(d.amount)
 			self.total_sanctioned_amount += flt(d.sanctioned_amount)
+   
+		for d in self.get("felapp_expense_claim_invoices"):
+			self.round_floats_in(d)
+
+			if self.approval_status == "Rejected":
+				d.sanctioned_amount = 0.0
+
+			self.total_claimed_amount += flt(d.paid_amount)
+			self.total_sanctioned_amount += flt(d.paid_amount)
+   
+			self.total_claimed_amount += flt(d.outstanding_amount)
+			self.total_sanctioned_amount += flt(d.outstanding_amount)
 
 		self.round_floats_in(self, ["total_claimed_amount", "total_sanctioned_amount"])
 
@@ -409,7 +485,7 @@ def get_total_reimbursed_amount(doc):
 		return flt(amount_via_jv) + flt(amount_via_payment_entry)
 
 
-def get_outstanding_amount_for_claim(claim):
+def get_outstanding_amount_for_claim(claim, doc=[]):
 	if isinstance(claim, str):
 		claim = frappe.db.get_value(
 			"Expense Claim",
@@ -422,14 +498,22 @@ def get_outstanding_amount_for_claim(claim):
 			),
 			as_dict=True,
 		)
-
+	total_invoice_paid_amount = sum(
+    	invoice.paid_amount for invoice in doc.felapp_expense_claim_invoices
+	)
+ 
+	total_invoice_outstanding_amount = sum(
+    	invoice.outstanding_amount for invoice in doc.felapp_expense_claim_invoices
+	)
+ 
 	outstanding_amt = (
 		flt(claim.total_sanctioned_amount)
 		+ flt(claim.total_taxes_and_charges)
 		- flt(claim.total_amount_reimbursed)
 		- flt(claim.total_advance_amount)
+		- flt(total_invoice_paid_amount)
+		- flt(total_invoice_outstanding_amount)
 	)
-
 	return outstanding_amt
 
 
@@ -442,7 +526,7 @@ def make_bank_entry(dt, dn):
 	if not default_bank_cash_account:
 		default_bank_cash_account = get_default_bank_cash_account(expense_claim.company, "Cash")
 
-	payable_amount = get_outstanding_amount_for_claim(expense_claim)
+	payable_amount = get_outstanding_amount_for_claim(expense_claim, expense_claim)
 
 	je = frappe.new_doc("Journal Entry")
 	je.voucher_type = "Bank Entry"
@@ -573,13 +657,14 @@ def update_payment_for_expense_claim(doc, method=None):
 			update_reimbursed_amount(expense_claim)
 
 			if doc.doctype == "Payment Entry":
-				update_outstanding_amount_in_payment_entry(expense_claim, d.name)
+				update_outstanding_amount_in_payment_entry(expense_claim, d.name, doc)
 
 
-def update_outstanding_amount_in_payment_entry(expense_claim: dict, pe_reference: str):
+def update_outstanding_amount_in_payment_entry(expense_claim: dict, pe_reference: str, doc):
 	"""updates outstanding amount back in Payment Entry reference"""
 	# TODO: refactor convoluted code after erpnext payment entry becomes extensible
-	outstanding_amount = get_outstanding_amount_for_claim(expense_claim)
+	outstanding_amount = get_outstanding_amount_for_claim(expense_claim, doc)
+
 	frappe.db.set_value("Payment Entry Reference", pe_reference, "outstanding_amount", outstanding_amount)
 
 
@@ -587,7 +672,7 @@ def validate_expense_claim_in_jv(doc, method=None):
 	"""Validates Expense Claim amount in Journal Entry"""
 	for d in doc.accounts:
 		if d.reference_type == "Expense Claim":
-			outstanding_amt = get_outstanding_amount_for_claim(d.reference_name)
+			outstanding_amt = get_outstanding_amount_for_claim(d.reference_name, doc)
 			if d.debit > outstanding_amt:
 				frappe.throw(
 					_(
