@@ -131,12 +131,13 @@ frappe.ui.form.on("Payroll Entry", {
 	create_salary_slips: function (frm) {
 		frm.call({
 			doc: frm.doc,
-			method: "run_doc_method",
-			args: {
-				method: "create_salary_slips",
-				dt: "Payroll Entry",
-				dn: frm.doc.name,
-			},
+			// method: "run_doc_method",
+			method: "create_salary_slips",
+			// args: {
+			// 	method: "create_salary_slips",
+			// 	dt: "Payroll Entry",
+			// 	dn: frm.doc.name,
+			// },
 		});
 	},
 
@@ -468,13 +469,16 @@ let make_bank_entry = function (frm, for_withheld_salaries = 0) {
 	const doc = frm.doc;
 	if (doc.payment_account) {
 		return frappe.call({
-			method: "run_doc_method",
+			// method: "run_doc_method",
+			method: "make_bank_entry",
 			args: {
-				method: "make_bank_entry",
-				dt: "Payroll Entry",
-				dn: frm.doc.name,
-				args: { for_withheld_salaries: for_withheld_salaries },
+				// method: "make_bank_entry",
+				// dt: "Payroll Entry",
+				// dn: frm.doc.name,
+				// args: { for_withheld_salaries: for_withheld_salaries },
+				for_withheld_salaries: for_withheld_salaries
 			},
+			doc: frm.doc,
 			callback: function () {
 				frappe.set_route("List", "Journal Entry", {
 					"Journal Entry Account.reference_name": frm.doc.name,
