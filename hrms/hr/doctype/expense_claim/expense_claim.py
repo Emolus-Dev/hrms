@@ -295,30 +295,6 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		for expense_invoice in self.felapp_expense_claim_invoices:
 			purchase_invoice = frappe.get_doc("Purchase Invoice", expense_invoice.purchase_invoice)
 			if purchase_invoice.status in ["Overdue", "Unpaid", "Partly Paid"] and purchase_invoice.outstanding_amount >= expense_invoice.outstanding_amount:
-				# payment_entry = frappe.get_doc({
-				# 	"doctype": "Payment Entry",  # Corrige "Doctype" a "doctype"
-				# 	"docstatus": 1,
-				# 	"payment_type": "Pay",
-				# 	"party_type": "Supplier",
-				# 	"party": expense_invoice.supplier,
-				# 	"posting_date": self.posting_date,
-				# 	"received_amount": expense_invoice.outstanding_amount,
-				# 	"mode_of_payment": self.custom_mode_of_payment,
-				# 	# los siguientes campos se deben generar dinámicamente.
-				# 	# "source_exchange_rate": 1,
-				# 	#"target_exchange_rate": 1,
-				# 	# "paid_from": "",
-				# 	# "paid_to": "",
-				# 	"references": [{
-				# 		"reference_doctype": "Purchase Invoice",
-				# 		"reference_name": purchase_invoice.name,
-				# 		"allocated_amount": expense_invoice.outstanding_amount
-				# 	}],
-				# 	"paid_amount": expense_invoice.outstanding_amount,
-				# 	"reference_no": self.name,
-				# 	"purchase_invoice": purchase_invoice.posting_date
-				# })
-				# payment_entry.insert(ignore_permissions=True,ignore_mandatory=True)
 
 				payment_entry = get_payment_entry("Purchase Invoice", expense_invoice.purchase_invoice)
 				payment_entry.docstatus = 1
