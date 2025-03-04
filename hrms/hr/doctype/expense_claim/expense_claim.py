@@ -299,7 +299,7 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 				payment_entry = get_payment_entry("Purchase Invoice", expense_invoice.purchase_invoice)
 				payment_entry.docstatus = 1
 				payment_entry.posting_date = frappe.utils.nowdate()
-				payment_entry.reference_no = frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "bill_no")
+				payment_entry.reference_no = expense_invoice.purchase_invoice  # bill_no
 				payment_entry.reference_date = frappe.db.get_value("Purchase Invoice", expense_invoice.purchase_invoice, "posting_date")
 				# payment_entry.insert(ignore_permissions=True)
 				frappe.log_error(title="test", message=json.dumps(payment_entry, indent=4, default=str))
