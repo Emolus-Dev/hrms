@@ -295,8 +295,8 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		for expense_invoice in self.felapp_expense_claim_invoices:
 			purchase_invoice = frappe.get_doc("Purchase Invoice", expense_invoice.purchase_invoice)
 			if purchase_invoice.status in ["Overdue", "Unpaid", "Partly Paid"] and purchase_invoice.outstanding_amount >= expense_invoice.outstanding_amount:
-
-				payment_entry = get_payment_entry("Purchase Invoice", expense_invoice.purchase_invoice)
+				paid_from_account = get_bank_cash_account(self.custom_mode_of_payment, self.company).get("account")
+				payment_entry = get_payment_entry("Purchase Invoice", expense_invoice.purchase_invoice, bank_account=paid_from_account)
 				payment_entry.docstatus = 1
 				payment_entry.posting_date = frappe.utils.nowdate()
 				payment_entry.reference_no = expense_invoice.purchase_invoice  # bill_no
