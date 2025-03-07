@@ -138,6 +138,8 @@ class SalarySlip(TransactionBase):
 	# CUSTOMIZATION
 	def before_save(self) -> None:
 		self.get_extraordinary_payroll()
+		if self.salary_slip_based_on_timesheet == 1:
+			self.set_totals()
 
 	def validate(self):
 		# CUSTOMIZATION
@@ -2028,9 +2030,46 @@ class SalarySlip(TransactionBase):
 			for timesheet in self.timesheets:
 				if timesheet.working_hours:
 					self.total_working_hours += timesheet.working_hours
+			# Emolus Calculations
+			overtime_summary_ = get_overtime_summary(self.employee, self.timesheets)
+			salary_structure_ = get_salary_structure_summary(self.salary_structure)
+
+		self.custom_regular_working_hours = overtime_summary_.shift_hours
+		self.hour_rate = salary_structure_.hour_rate
+
+		self.custom_previous_overtime_hours = overtime_summary_.previous_shift_hours
+		self.custom_previous_overtime_hours_rate = salary_structure_.custom_overtime_hours_rate
+
+		self.custom_overtime_hours = overtime_summary_.after_shift_hours
+		self.custom_overtime_hour_rate = salary_structure_.custom_after_shift_hour_rate
+
+		self.custom_holiday_overtime_hours = overtime_summary_.holiday_hours
+		self.custom_holiday_overtime_hour_rate = salary_structure_.custom_holiday_overtime_rate
+
+		if not any(compon.salary_component == salary_structure_.custom_overtime_salary_component for compon in self.earnings):
+			self.append("earnings", {
+				"salary_component": salary_structure_.custom_overtime_salary_component,
+				"amount": self.custom_overtime_hour_rate * overtime_summary_.previous_shift_hours
+			})
+		if not any(compon.salary_component == salary_structure_.custom_holiday_overtime_salary_component for compon in self.earnings):
+			self.append("earnings", {
+				"salary_component": salary_structure_.custom_holiday_overtime_salary_component,
+				"amount": self.custom_holiday_overtime_hour_rate * overtime_summary_.holiday_hours
+			})
+		if not any(compon.salary_component == salary_structure_.custom_after_shift_salary_component for compon in self.earnings):
+			self.append("earnings", {
+				"salary_component": salary_structure_.custom_after_shift_salary_component,
+				"amount": self.custom_overtime_hour_rate * overtime_summary_.after_shift_hours
+			})
+		if not any(compon.salary_component == salary_structure_.salary_component for compon in self.earnings):
+			self.append("earnings", {
+				"salary_component": salary_structure_.salary_component,
+				"amount": self.hour_rate * overtime_summary_.shift_hours
+			})
 
 		self.get_hourly_rate()
-		wages_amount = self.total_working_hours * self.hour_rate
+		# wages_amount = self.total_working_hours * self.hour_rate
+		wages_amount = self.custom_regular_working_hours * self.hour_rate
 		self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
 		salary_component = frappe.db.get_value(
 			"Salary Structure", {"name": self.salary_structure}, "salary_component", cache=True
@@ -2405,3 +2444,97 @@ def email_salary_slips(names) -> None:
 	for name in names:
 		salary_slip = frappe.get_doc("Salary Slip", name)
 		salary_slip.email_salary_slip()
+
+def get_overtime_summary(employee_name, timesheets):
+
+	allowed_timesheets = tuple(d.time_sheet for d in timesheets)
+
+	query_str = """SELECT
+		t.employee,
+		e.employee_name,
+		e.department,
+		CONCAT(DATE(td.from_time), ' ', st.end_time) as time_stamp,
+		td.from_time,
+		td.to_time,
+		SUM(
+			IF(h.holiday_date IS NOT NULL AND e.holiday_list = h.parent, 0,
+				ABS(
+					TIMESTAMPDIFF(SECOND,
+						GREATEST(td.from_time, CONCAT(DATE(td.from_time), ' ', st.start_time)),
+						LEAST(td.to_time, CONCAT(DATE(td.from_time), ' ', st.end_time))
+					) / 3600
+				)
+			)
+		) AS shift_hours,
+		SUM(
+			IF(h.holiday_date IS NOT NULL AND e.holiday_list = h.parent, 0,
+				ABS(
+					CASE
+						WHEN TIME(td.from_time) < srs.end_time THEN
+							TIMESTAMPDIFF(SECOND,
+								GREATEST(td.from_time, CONCAT(DATE(td.from_time), ' ', '00:00:00')),
+								LEAST(td.to_time, CONCAT(DATE(td.from_time), ' ', st.start_time))
+							) / 3600
+						ELSE 0
+					END
+				)
+			)
+		) AS previous_shift_hours,
+		SUM(
+			IF(h.holiday_date IS NOT NULL AND e.holiday_list = h.parent, 0,
+				ABS(
+					CASE
+						WHEN IF(TIME(td.to_time) = '00:00:00', '24:00:00', td.to_time) > st.end_time THEN
+							TIMESTAMPDIFF(SECOND,
+								GREATEST(td.from_time, CONCAT(DATE(td.from_time), ' ', st.end_time) ),
+								LEAST(td.to_time, TIMESTAMP(IF(TIME(td.to_time) = '00:00:00', '24:00:00', td.to_time), '24:00:00'))
+
+							) / 3600
+						ELSE 0
+					END
+				)
+			)
+		) AS after_shift_hours,
+		SUM(
+			IF(h.holiday_date IS NOT NULL AND e.holiday_list = h.parent,
+				TIMESTAMPDIFF(SECOND,
+							td.from_time,
+							td.to_time
+					) / 3600,
+			0
+		)) AS holiday_hours
+	FROM
+		`tabTimesheet` t
+	JOIN
+		`tabTimesheet Detail` td ON td.parent = t.name
+	JOIN
+		`tabEmployee` e ON t.employee = e.name
+	JOIN
+		`tabShift Type` st ON e.default_shift = st.name
+	LEFT JOIN
+		`tabShift Type` srs ON e.custom_special_rate_shift = srs.name
+	LEFT JOIN
+		`tabHoliday` h ON DATE(td.from_time) = h.holiday_date AND h.parent = e.holiday_list
+	WHERE e.name = %(employee_name_)s AND t.name IN %(allowed_timesheets)s
+	GROUP BY
+		t.employee, e.employee_name, e.department;
+	"""
+	query_params = {
+		"employee_name_": employee_name,
+		"allowed_timesheets": allowed_timesheets
+	}
+
+	query_res = frappe.db.sql(query_str, query_params, as_dict=True)
+
+	if query_res:
+		return query_res[0]
+
+	return {}
+
+
+def get_salary_structure_summary(salary_structure):
+	return frappe.db.get_value("Salary Structure", {"name": salary_structure},
+							fieldname=["hour_rate", "custom_overtime_salary_component",
+										"custom_overtime_hours_rate", "custom_holiday_overtime_salary_component",
+										"custom_holiday_overtime_rate", "custom_after_shift_salary_component",
+										"custom_after_shift_hour_rate", "salary_component"], as_dict=True)
