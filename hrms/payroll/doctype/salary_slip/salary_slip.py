@@ -409,12 +409,43 @@ class SalarySlip(TransactionBase):
 				title=_("Salary Structure Missing"),
 			)
 
+	def get_hourly_rate(self):
+		# 1. consultar si en la asignacion de estructura de salario existe un valor para la tarifa por hora, usar ese valor
+		# 2. si no existe, usar el valor de la estructura de salario
+		# salary_structure_assignment = frappe.db.get_value("Salary Structure Assignment",
+		# 	{"employee": self.employee, "salary_structure": self.salary_structure,
+		# 	"from_date": {">=": self.posting_date}, "docstatus": 1}, "hourly_rate")
+
+		# if salary_structure_assignment:
+		# 	self.hour_rate = salary_structure_assignment
+		# else:
+		salary_structure_assignment = frappe.db.sql("""
+			SELECT hourly_rate
+			FROM `tabSalary Structure Assignment`
+			WHERE employee = %(employee)s 
+			AND salary_structure = %(salary_structure)s
+			AND from_date <= %(posting_date)s 
+			AND docstatus = 1
+			ORDER BY from_date DESC
+			LIMIT 1
+		""", {
+			"employee": self.employee,
+			"salary_structure": self.salary_structure,
+			"posting_date": self.posting_date
+		})
+		
+		if salary_structure_assignment and salary_structure_assignment[0][0]:
+			self.hour_rate = salary_structure_assignment[0][0]
+		else:
+			self.hour_rate = self._salary_structure_doc.hour_rate
+
 	def pull_sal_struct(self):
 		from hrms.payroll.doctype.salary_structure.salary_structure import make_salary_slip
 
 		if self.salary_slip_based_on_timesheet:
 			self.salary_structure = self._salary_structure_doc.name
-			self.hour_rate = self._salary_structure_doc.hour_rate
+			
+			self.get_hourly_rate()
 			self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
 			self.total_working_hours = sum([d.working_hours or 0.0 for d in self.timesheets]) or 0.0
 			wages_amount = self.hour_rate * self.total_working_hours
@@ -743,6 +774,7 @@ class SalarySlip(TransactionBase):
 				break
 
 		if not row_exists:
+			self.get_hourly_rate()
 			wages_row = {
 				"salary_component": salary_component,
 				"abbr": frappe.db.get_value(
@@ -827,6 +859,7 @@ class SalarySlip(TransactionBase):
 		self.rounded_total = rounded(self.net_pay)
 		self.base_net_pay = flt(flt(self.net_pay) * flt(self.exchange_rate), self.precision("base_net_pay"))
 		self.base_rounded_total = flt(rounded(self.base_net_pay), self.precision("base_net_pay"))
+		self.get_hourly_rate()
 		if self.hour_rate:
 			self.base_hour_rate = flt(
 				flt(self.hour_rate) * flt(self.exchange_rate), self.precision("base_hour_rate")
@@ -1996,6 +2029,7 @@ class SalarySlip(TransactionBase):
 				if timesheet.working_hours:
 					self.total_working_hours += timesheet.working_hours
 
+		self.get_hourly_rate()
 		wages_amount = self.total_working_hours * self.hour_rate
 		self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
 		salary_component = frappe.db.get_value(

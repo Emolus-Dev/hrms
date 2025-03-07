@@ -22,6 +22,7 @@
   "salary_slip_based_on_timesheet",
   "payroll_frequency",
   "salary_component",
+  "hourly_rate_calculation_method",
   "hour_rate",
   "earning_deduction",
   "earnings",
@@ -98,7 +99,7 @@
    "fieldtype": "Section Break"
   },
   {
-   "default": "0",
+   "default": "1",
    "fieldname": "salary_slip_based_on_timesheet",
    "fieldtype": "Check",
    "label": "Salary Slip Based on Timesheet",
@@ -116,6 +117,7 @@
    "options": "Salary Component"
   },
   {
+   "depends_on": "eval:doc.hourly_rate_calculation_method == \"Manual\"",
    "fieldname": "hour_rate",
    "fieldtype": "Currency",
    "label": "Hour Rate",
@@ -235,13 +237,19 @@
    "options": "Currency",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "hourly_rate_calculation_method",
+   "fieldtype": "Select",
+   "label": "Hourly Rate Calculation Method",
+   "options": "Manual\nRegulatory"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-02-27 18:37:35.878210",
+ "modified": "2025-03-07 09:01:06.272640",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Structure",
