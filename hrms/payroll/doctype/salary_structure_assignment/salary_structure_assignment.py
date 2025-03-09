@@ -26,9 +26,13 @@ class SalaryStructureAssignment(Document):
 
 		self.validate_cost_centers()
 		self.warn_about_missing_opening_entries()
-
+		self.set_hourly_rate()
 	def on_update_after_submit(self):
 		self.validate_cost_centers()
+
+	def set_hourly_rate(self):
+		if self.hourly_rate_calculation_method == "Regulatory":
+			self.hourly_rate = self.base / 240
 
 	def validate_dates(self):
 		joining_date, relieving_date = frappe.db.get_value(
