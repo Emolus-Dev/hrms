@@ -2034,52 +2034,65 @@ class SalarySlip(TransactionBase):
 			overtime_summary_ = get_overtime_summary(self.employee, self.timesheets)
 			salary_structure_ = get_salary_structure_summary(self.salary_structure)
 
-		self.custom_regular_working_hours = overtime_summary_.shift_hours
-		self.hour_rate = salary_structure_.hour_rate
+			self.custom_regular_working_hours = overtime_summary_.shift_hours
+			self.hour_rate = salary_structure_.hour_rate
 
-		self.custom_previous_overtime_hours = overtime_summary_.previous_shift_hours
-		self.custom_previous_overtime_hours_rate = salary_structure_.custom_overtime_hours_rate
+			self.custom_previous_overtime_hours = overtime_summary_.previous_shift_hours
+			self.custom_previous_overtime_hours_rate = salary_structure_.custom_overtime_hours_rate
 
-		self.custom_overtime_hours = overtime_summary_.after_shift_hours
-		self.custom_overtime_hour_rate = salary_structure_.custom_after_shift_hour_rate
+			self.custom_overtime_hours = overtime_summary_.after_shift_hours
+			self.custom_overtime_hour_rate = salary_structure_.custom_after_shift_hour_rate
 
-		self.custom_holiday_overtime_hours = overtime_summary_.holiday_hours
-		self.custom_holiday_overtime_hour_rate = salary_structure_.custom_holiday_overtime_rate
+			self.custom_holiday_overtime_hours = overtime_summary_.holiday_hours
+			self.custom_holiday_overtime_hour_rate = salary_structure_.custom_holiday_overtime_rate
 
-		if not any(compon.salary_component == salary_structure_.custom_overtime_salary_component for compon in self.earnings):
-			self.append("earnings", {
-				"salary_component": salary_structure_.custom_overtime_salary_component,
-				"amount": self.custom_overtime_hour_rate * overtime_summary_.previous_shift_hours
-			})
-		if not any(compon.salary_component == salary_structure_.custom_holiday_overtime_salary_component for compon in self.earnings):
-			self.append("earnings", {
-				"salary_component": salary_structure_.custom_holiday_overtime_salary_component,
-				"amount": self.custom_holiday_overtime_hour_rate * overtime_summary_.holiday_hours
-			})
-		if not any(compon.salary_component == salary_structure_.custom_after_shift_salary_component for compon in self.earnings):
-			self.append("earnings", {
-				"salary_component": salary_structure_.custom_after_shift_salary_component,
-				"amount": self.custom_overtime_hour_rate * overtime_summary_.after_shift_hours
-			})
-		if not any(compon.salary_component == salary_structure_.salary_component for compon in self.earnings):
-			self.append("earnings", {
-				"salary_component": salary_structure_.salary_component,
-				"amount": self.hour_rate * overtime_summary_.shift_hours
-			})
+			if not any(compon.salary_component == salary_structure_.custom_overtime_salary_component for compon in self.earnings):
+				self.append("earnings", {
+					"salary_component": salary_structure_.custom_overtime_salary_component,
+					"amount": self.custom_overtime_hour_rate * overtime_summary_.previous_shift_hours
+				})
+			if not any(compon.salary_component == salary_structure_.custom_holiday_overtime_salary_component for compon in self.earnings):
+				self.append("earnings", {
+					"salary_component": salary_structure_.custom_holiday_overtime_salary_component,
+					"amount": self.custom_holiday_overtime_hour_rate * overtime_summary_.holiday_hours
+				})
+			if not any(compon.salary_component == salary_structure_.custom_after_shift_salary_component for compon in self.earnings):
+				self.append("earnings", {
+					"salary_component": salary_structure_.custom_after_shift_salary_component,
+					"amount": self.custom_overtime_hour_rate * overtime_summary_.after_shift_hours
+				})
+			if not any(compon.salary_component == salary_structure_.salary_component for compon in self.earnings):
+				self.append("earnings", {
+					"salary_component": salary_structure_.salary_component,
+					"amount": self.hour_rate * overtime_summary_.shift_hours
+				})
 
-		self.get_hourly_rate()
-		# wages_amount = self.total_working_hours * self.hour_rate
-		wages_amount = self.custom_regular_working_hours * self.hour_rate
-		self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
-		salary_component = frappe.db.get_value(
-			"Salary Structure", {"name": self.salary_structure}, "salary_component", cache=True
-		)
-		if self.earnings:
-			for i, earning in enumerate(self.earnings):
-				if earning.salary_component == salary_component:
-					self.earnings[i].amount = wages_amount
-				self.gross_pay += flt(self.earnings[i].amount, earning.precision("amount"))
-		self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
+			self.get_hourly_rate()
+			# wages_amount = self.total_working_hours * self.hour_rate
+			wages_amount = self.custom_regular_working_hours * self.hour_rate
+			self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
+			salary_component = frappe.db.get_value(
+				"Salary Structure", {"name": self.salary_structure}, "salary_component", cache=True
+			)
+			if self.earnings:
+				for i, earning in enumerate(self.earnings):
+					if earning.salary_component == salary_component:
+						self.earnings[i].amount = wages_amount
+					self.gross_pay += flt(self.earnings[i].amount, earning.precision("amount"))
+			self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
+   
+		else:
+			wages_amount = self.total_working_hours * self.hour_rate
+			self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
+			salary_component = frappe.db.get_value(
+				"Salary Structure", {"name": self.salary_structure}, "salary_component", cache=True
+			)
+			if self.earnings:
+				for i, earning in enumerate(self.earnings):
+					if earning.salary_component == salary_component:
+						self.earnings[i].amount = wages_amount
+					self.gross_pay += flt(self.earnings[i].amount, earning.precision("amount"))
+			self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
 
 	def compute_year_to_date(self):
 		year_to_date = 0
