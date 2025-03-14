@@ -422,7 +422,7 @@ class SalarySlip(TransactionBase):
 		# 	self.hour_rate = salary_structure_assignment
 		# else:
 		salary_structure_assignment = frappe.db.sql("""
-			SELECT hourly_rate
+			SELECT hour_rate
 			FROM `tabSalary Structure Assignment`
 			WHERE employee = %(employee)s 
 			AND salary_structure = %(salary_structure)s
