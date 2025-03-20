@@ -27,6 +27,26 @@ class SalaryStructureAssignment(Document):
 		self.validate_cost_centers()
 		self.warn_about_missing_opening_entries()
 		self.set_hourly_rate()
+		self.validate_salary_component()
+
+	def validate_salary_component(self):
+		salary_structure = frappe.get_cached_doc("Salary Structure", self.salary_structure)
+		# TODO: BORRAR DE SALARY STRUCTURE Y SALARY STRUCTURE ASSIGNMENT
+		# salary_component
+		# self.custom_overtime_salary_component,
+		# self.custom_holiday_overtime_salary_component,
+		# self.custom_after_shift_salary_component,
+
+		componentes = [
+			self.salary_component
+		]
+
+		componentes_existentes = [compon.salary_component for compon in salary_structure.earnings]
+
+		for componente in componentes:
+			if componente and componente not in componentes_existentes:
+				frappe.throw(f"El componente {componente} no existe en la estructura de salario")
+
 	def on_update_after_submit(self):
 		self.validate_cost_centers()
 

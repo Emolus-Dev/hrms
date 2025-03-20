@@ -29,6 +29,18 @@ class SalaryStructure(Document):
 		self.validate_payment_days_based_dependent_component()
 		self.validate_timesheet_component()
 		self.validate_formula_setup()
+		self.validate_salary_component()
+
+	def validate_salary_component(self):
+		componentes = [
+			self.salary_component
+		]
+
+		componentes_existentes = [compon.salary_component for compon in self.earnings]
+
+		for componente in componentes:
+			if componente and componente not in componentes_existentes:
+				frappe.throw(f"El componente {componente} no existe en la estructura de salario")
 
 	def on_update(self):
 		self.reset_condition_and_formula_fields()
