@@ -2054,19 +2054,17 @@ class SalarySlip(TransactionBase):
 
 				if salary_structure_assignment_doc.hour_rate > 0:
 					self.hour_rate = salary_structure_assignment_doc.hour_rate
+				else:
+					self.hour_rate = salary_structure_.hour_rate
+     
+				if salary_structure_assignment_doc.custom_overtime_hours_rate > 0:
 					self.custom_previous_overtime_hours_rate = salary_structure_assignment_doc.custom_overtime_hours_rate
 					self.custom_overtime_hour_rate = salary_structure_assignment_doc.custom_after_shift_hour_rate
 					self.custom_holiday_overtime_hour_rate = salary_structure_assignment_doc.custom_holiday_overtime_rate
 				else:
-					self.hour_rate = salary_structure_.hour_rate
 					self.custom_previous_overtime_hours_rate = salary_structure_.custom_overtime_hours_rate
 					self.custom_overtime_hour_rate = salary_structure_.custom_after_shift_hour_rate
 					self.custom_holiday_overtime_hour_rate = salary_structure_.custom_holiday_overtime_rate
-
-				# DEBUG
-				frappe.log_error("test",
-					f"salary_component: {salary_structure_.salary_component}, amount: {self.custom_overtime_hour_rate} * {overtime_summary_.previous_shift_hours}"
-				)
 
 				if self.custom_previous_overtime_hours_rate == 0:
 					self.custom_previous_overtime_hours_rate = self.hour_rate
@@ -2075,34 +2073,22 @@ class SalarySlip(TransactionBase):
 				if self.custom_holiday_overtime_hour_rate == 0:
 					self.custom_holiday_overtime_hour_rate = self.hour_rate
 
-				if overtime_summary_.previous_shift_hours > 0:
-					for i, earning in enumerate(self.earnings):
-						if earning.salary_component == salary_structure_.salary_component:
+				for i, earning in enumerate(self.earnings):
+					if earning.salary_component == salary_structure_.salary_component:
+						self.earnings[i].amount = 0
+						if self.custom_previous_overtime_hours > 0:
 							self.earnings[i].amount += (
-								self.custom_overtime_hour_rate * overtime_summary_.previous_shift_hours
+								self.custom_previous_overtime_hours_rate * self.custom_previous_overtime_hours
+							)
+						if self.custom_holiday_overtime_hours > 0:
+							self.earnings[i].amount += (
+								self.custom_holiday_overtime_hour_rate * self.custom_holiday_overtime_hours
+							)
+						if self.custom_overtime_hours > 0:
+							self.earnings[i].amount += (
+								self.custom_overtime_hour_rate * self.custom_overtime_hours
 							)
 							break
-
-				if overtime_summary_.holiday_hours > 0:
-					for i, earning in enumerate(self.earnings):
-						if earning.salary_component == salary_structure_.salary_component:
-							self.earnings[i].amount += (
-								self.custom_holiday_overtime_hour_rate * overtime_summary_.holiday_hours
-							)
-							break
-
-				if overtime_summary_.after_shift_hours > 0:
-					for i, earning in enumerate(self.earnings):
-						if earning.salary_component == salary_structure_.salary_component:
-							self.earnings[i].amount += (
-								self.custom_overtime_hour_rate * overtime_summary_.after_shift_hours
-							)
-							break
-
-				# for i, earning in enumerate(self.earnings):
-				# 	if earning.salary_component == salary_structure_.salary_component:
-				# 		self.earnings[i].amount += self.hour_rate * overtime_summary_.shift_hours
-				# 		break
 
 			# self.get_hourly_rate()
 			# wages_amount = self.total_working_hours * self.hour_rate
