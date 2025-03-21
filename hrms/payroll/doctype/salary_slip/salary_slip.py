@@ -2067,17 +2067,7 @@ class SalarySlip(TransactionBase):
 					self.custom_holiday_overtime_hour_rate = salary_structure_.custom_holiday_overtime_rate
 
 				if not self.custom_previous_overtime_hours_rate and not self.custom_overtime_hour_rate and not self.custom_holiday_overtime_hour_rate:
-					wages_amount = self.total_working_hours * self.hour_rate
-					self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
-					salary_component = frappe.db.get_value(
-						"Salary Structure", {"name": self.salary_structure}, "salary_component", cache=True
-					)
-					if self.earnings:
-						for i, earning in enumerate(self.earnings):
-							if earning.salary_component == salary_component:
-								self.earnings[i].amount += wages_amount
-							self.gross_pay += flt(self.earnings[i].amount, earning.precision("amount"))
-							self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
+					self.calculate_total_for_salary_slip()
 					return
 
 				# if self.custom_previous_overtime_hours_rate == 0:
@@ -2119,17 +2109,20 @@ class SalarySlip(TransactionBase):
 			# self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
 
 		else:
-			wages_amount = self.total_working_hours * self.hour_rate
-			self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
-			salary_component = frappe.db.get_value(
-				"Salary Structure", {"name": self.salary_structure}, "salary_component", cache=True
-			)
-			if self.earnings:
-				for i, earning in enumerate(self.earnings):
-					if earning.salary_component == salary_component:
-						self.earnings[i].amount += wages_amount
-					self.gross_pay += flt(self.earnings[i].amount, earning.precision("amount"))
-			self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
+			self.calculate_total_for_salary_slip()
+
+	def calculate_total_for_salary_slip(self):
+		wages_amount = self.total_working_hours * self.hour_rate
+		self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
+		salary_component = frappe.db.get_value(
+			"Salary Structure", {"name": self.salary_structure}, "salary_component", cache=True
+		)
+		if self.earnings:
+			for i, earning in enumerate(self.earnings):
+				if earning.salary_component == salary_component:
+					self.earnings[i].amount += wages_amount
+				self.gross_pay += flt(self.earnings[i].amount, earning.precision("amount"))
+		self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
 
 	def compute_year_to_date(self):
 		year_to_date = 0
