@@ -2028,6 +2028,18 @@ class SalarySlip(TransactionBase):
 
 	# calculate total working hours, earnings based on hourly wages and totals
 	def calculate_total_for_salary_slip_based_on_timesheet(self):
+		salary_structure_assignment_doc = frappe.get_doc(
+			"Salary Structure Assignment",
+			{
+				"employee": self.employee,
+				"docstatus": 1,
+				"from_date": [">=", self.start_date],
+			},
+		)
+		salary_structure_ = get_salary_structure_summary(salary_structure_assignment_doc.salary_structure)
+		for i, earning in enumerate(self.earnings):
+			if earning.salary_component == salary_structure_.salary_component:
+				self.earnings[i].amount = 0
 		if self.timesheets:
 			self.total_working_hours = 0
 			for timesheet in self.timesheets:
@@ -2036,16 +2048,8 @@ class SalarySlip(TransactionBase):
 
 			# Emolus Calculations
 			overtime_summary_ = get_overtime_summary(self.employee, self.timesheets)
-			salary_structure_assignment_doc = frappe.get_doc(
-				"Salary Structure Assignment",
-				{
-					"employee": self.employee,
-					"docstatus": 1,
-					"from_date": [">=", self.start_date],
-				},
-			)
-			salary_structure_ = get_salary_structure_summary(salary_structure_assignment_doc.salary_structure)
-
+			
+			
 			if salary_structure_.salary_component:
 				self.custom_regular_working_hours = overtime_summary_.shift_hours
 				self.custom_previous_overtime_hours = overtime_summary_.previous_shift_hours
@@ -2109,6 +2113,12 @@ class SalarySlip(TransactionBase):
 			# self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
 
 		else:
+			self.total_working_hours = 0
+			self.custom_regular_working_hours = 0
+			self.custom_previous_overtime_hours = 0
+			self.custom_overtime_hours = 0
+			self.custom_holiday_overtime_hours = 0
+			
 			self.calculate_total_for_salary_slip()
 
 	def calculate_total_for_salary_slip(self):
@@ -2603,6 +2613,7 @@ def get_overtime_summary(employee_name, timesheets):
 	"""
 
 	query_params = {"employee_name_": employee_name, "allowed_timesheets": allowed_timesheets}
+	frappe.log_error("query_str", query_str)
 	query_res = frappe.db.sql(query_str, query_params, as_dict=True)
 
 	if query_res:
