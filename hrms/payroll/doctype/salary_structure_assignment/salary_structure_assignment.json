@@ -35,13 +35,9 @@
   "salary_slip_based_on_timesheet",
   "hourly_rate_calculation_method",
   "hour_rate",
-  "salary_component",
   "column_break_plmt",
-  "custom_overtime_salary_component",
   "custom_overtime_hours_rate",
-  "custom_holiday_overtime_salary_component",
   "custom_holiday_overtime_rate",
-  "custom_after_shift_salary_component",
   "custom_after_shift_hour_rate"
  ],
  "fields": [
@@ -235,15 +231,16 @@
   },
   {
    "fetch_from": "salary_structure.hourly_rate_calculation_method",
+   "fetch_if_empty": 1,
    "fieldname": "hourly_rate_calculation_method",
    "fieldtype": "Select",
-   "hidden": 1,
    "label": "Hourly Rate Calculation Method",
    "options": "Manual\nRegulatory"
   },
   {
    "depends_on": "eval:doc.hourly_rate_calculation_method == \"Manual\"",
    "fetch_from": "salary_structure.hour_rate",
+   "fetch_if_empty": 1,
    "fieldname": "hour_rate",
    "fieldtype": "Currency",
    "label": "Hour Rate",
@@ -255,57 +252,37 @@
   },
   {
    "depends_on": "eval:doc.hourly_rate_calculation_method == \"Manual\"",
-   "fieldname": "custom_overtime_salary_component",
-   "fieldtype": "Link",
-   "label": "Overtime Salary Component (Previous Shift)",
-   "options": "Salary Component"
-  },
-  {
-   "depends_on": "eval:doc.hourly_rate_calculation_method == \"Manual\"",
+   "fetch_from": "salary_structure.custom_overtime_hours_rate",
+   "fetch_if_empty": 1,
    "fieldname": "custom_overtime_hours_rate",
    "fieldtype": "Currency",
    "label": "Overtime Hour Rate (Previous Shift)",
-   "options": "currency"
+   "options": "currency",
+   "read_only_depends_on": "eval:doc.hourly_rate_calculation_method == \"Regulatory\""
   },
   {
    "depends_on": "eval:doc.hourly_rate_calculation_method == \"Manual\"",
-   "fieldname": "custom_holiday_overtime_salary_component",
-   "fieldtype": "Link",
-   "label": "Holiday Overtime Salary Component",
-   "options": "Salary Component"
-  },
-  {
-   "depends_on": "eval:doc.hourly_rate_calculation_method == \"Manual\"",
+   "fetch_from": "salary_structure.custom_holiday_overtime_rate",
+   "fetch_if_empty": 1,
    "fieldname": "custom_holiday_overtime_rate",
    "fieldtype": "Currency",
    "label": "Holiday Overtime Rate",
-   "options": "currency"
+   "options": "currency",
+   "read_only_depends_on": "eval:doc.hourly_rate_calculation_method == \"Regulatory\""
   },
   {
    "depends_on": "eval:doc.hourly_rate_calculation_method == \"Manual\"",
-   "fieldname": "custom_after_shift_salary_component",
-   "fieldtype": "Link",
-   "label": "Overtime Salary Component (After Shift)",
-   "options": "Salary Component"
-  },
-  {
-   "depends_on": "eval:doc.hourly_rate_calculation_method == \"Manual\"",
+   "fetch_if_empty": 1,
    "fieldname": "custom_after_shift_hour_rate",
    "fieldtype": "Currency",
    "label": "Overtime Hour Rate (After Shift)",
-   "options": "currency"
-  },
-  {
-   "description": "Salary Component for timesheet based payroll.",
-   "fieldname": "salary_component",
-   "fieldtype": "Link",
-   "label": "Salary Component",
-   "options": "Salary Component"
+   "options": "currency",
+   "read_only_depends_on": "eval:doc.hourly_rate_calculation_method == \"Regulatory\""
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2025-03-07 09:21:00.597186",
+ "modified": "2025-03-29 10:00:59.965881",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Structure Assignment",
