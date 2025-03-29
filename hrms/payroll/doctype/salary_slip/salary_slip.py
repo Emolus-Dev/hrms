@@ -2033,7 +2033,7 @@ class SalarySlip(TransactionBase):
 			{
 				"employee": self.employee,
 				"docstatus": 1,
-				"from_date": [">=", self.start_date],
+				"from_date": ["<=", self.start_date],
 			},
 		)
 		salary_structure_ = get_salary_structure_summary(salary_structure_assignment_doc.salary_structure)

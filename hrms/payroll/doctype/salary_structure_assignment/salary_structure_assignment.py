@@ -53,6 +53,9 @@ class SalaryStructureAssignment(Document):
 	def set_hourly_rate(self):
 		if self.hourly_rate_calculation_method == "Regulatory":
 			self.hourly_rate = self.base / 240
+			self.custom_overtime_hours_rate = self.hourly_rate
+			self.custom_holiday_overtime_rate = self.hourly_rate
+			self.custom_after_shift_hour_rate = self.hourly_rate
 
 	def validate_dates(self):
 		joining_date, relieving_date = frappe.db.get_value(

@@ -17,6 +17,7 @@ from hrms.payroll.utils import sanitize_expression
 class SalaryStructure(Document):
 	def before_validate(self):
 		self.sanitize_condition_and_formula_fields()
+		self.set_hourly_rate()
 
 	def before_update_after_submit(self):
 		self.sanitize_condition_and_formula_fields()
@@ -103,6 +104,13 @@ class SalaryStructure(Document):
 	def validate_amount(self):
 		if flt(self.net_pay) < 0 and self.salary_slip_based_on_timesheet:
 			frappe.throw(_("Net pay cannot be negative"))
+
+	def set_hourly_rate(self):
+		if self.hourly_rate_calculation_method == "Regulatory":
+			self.hour_rate = self.base / 240
+			self.custom_overtime_hours_rate = self.hour_rate
+			self.custom_holiday_overtime_rate = self.hour_rate
+			self.custom_after_shift_hour_rate = self.hour_rate
 
 	def validate_payment_days_based_dependent_component(self):
 		abbreviations = self.get_component_abbreviations()
