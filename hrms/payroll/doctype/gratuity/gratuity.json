@@ -12,6 +12,7 @@
   "department",
   "designation",
   "current_work_experience",
+  "custom_extraordinary_payroll",
   "column_break_3",
   "company",
   "posting_date",
@@ -197,12 +198,19 @@
    "fieldname": "details_tab",
    "fieldtype": "Tab Break",
    "label": "Gratuity"
+  },
+  {
+   "default": "0",
+   "fieldname": "custom_extraordinary_payroll",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Extraordinary Payroll"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-02-11 08:15:52.475323",
+ "modified": "2025-03-29 12:42:49.335071",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Gratuity",

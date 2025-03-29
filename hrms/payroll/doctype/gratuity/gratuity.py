@@ -34,7 +34,7 @@ class Gratuity(AccountsController):
 					"total_working_days_per_year",
 					"minimum_year_for_gratuity",
 					"calculate_gratuity_amount_based_on",
-					"last_slabs",
+					#"last_slabs",
 					"based_on"
 				],
 				as_dict=True,

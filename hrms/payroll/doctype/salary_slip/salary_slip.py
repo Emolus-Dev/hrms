@@ -140,6 +140,13 @@ class SalarySlip(TransactionBase):
 		self.get_extraordinary_payroll()
 		if self.salary_slip_based_on_timesheet == 1:
 			self.set_totals()
+		if self.custom_extraordinary_payroll_start_date and self.salary_slip_based_on_timesheet == 1:
+			self.timesheets = []
+			self.total_working_hours = 0
+			self.custom_regular_working_hours = 0
+			self.custom_overtime_hours = 0
+			self.custom_previous_overtime_hours = 0
+   
 
 	def validate(self):
 		# CUSTOMIZATION
@@ -447,8 +454,7 @@ class SalarySlip(TransactionBase):
 	def pull_sal_struct(self):
 		from hrms.payroll.doctype.salary_structure.salary_structure import make_salary_slip
 
-		if self.salary_slip_based_on_timesheet:
-			self.salary_structure = self._salary_structure_doc.name
+		if self.salary_slip_based_on_timesheet and not self.custom_extraordinary_payroll_start_date:
 
 			self.get_hourly_rate()
 			self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
@@ -772,6 +778,8 @@ class SalarySlip(TransactionBase):
 
 	def add_earning_for_hourly_wages(self, doc, salary_component, amount):
 		row_exists = False
+		if doc.custom_extraordinary_payroll_start_date:
+			return
 		for row in doc.earnings:
 			if row.salary_component == salary_component:
 				row.amount += amount

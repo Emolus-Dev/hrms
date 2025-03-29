@@ -704,7 +704,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:doc.salary_slip_based_on_timesheet",
+   "depends_on": "eval:doc.salary_slip_based_on_timesheet && !doc.custom_extraordinary_payroll_start_date",
    "fieldname": "timesheets_section",
    "fieldtype": "Section Break",
    "label": "Timesheet Details"
@@ -746,7 +746,7 @@
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-07-01 21:25:36.651583",
+ "modified": "2025-03-29 12:02:37.352173",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",
