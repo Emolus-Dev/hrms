@@ -2081,13 +2081,6 @@ class SalarySlip(TransactionBase):
 					self.calculate_total_for_salary_slip()
 					return
 
-				# if self.custom_previous_overtime_hours_rate == 0:
-				# 	self.custom_previous_overtime_hours_rate = self.hour_rate
-				# if self.custom_overtime_hour_rate == 0:
-				# 	self.custom_overtime_hour_rate = self.hour_rate
-				# if self.custom_holiday_overtime_hour_rate == 0:
-				# 	self.custom_holiday_overtime_hour_rate = self.hour_rate
-
 				for i, earning in enumerate(self.earnings):
 					if earning.salary_component == salary_structure_.salary_component:
 						if self.custom_previous_overtime_hours > 0:
@@ -2104,21 +2097,6 @@ class SalarySlip(TransactionBase):
 							)
 							break
 
-			# self.get_hourly_rate()
-			# wages_amount = self.total_working_hours * self.hour_rate
-			# wages_amount = self.custom_regular_working_hours * self.hour_rate
-			# self.base_hour_rate = flt(self.hour_rate) * flt(self.exchange_rate)
-			# salary_component = frappe.db.get_value(
-			# 	"Salary Structure", {"name": self.salary_structure}, "salary_component", cache=True
-			# )
-
-			# if self.earnings:
-			# 	for i, earning in enumerate(self.earnings):
-			# 		if earning.salary_component == salary_component:
-			# 			self.earnings[i].amount += wages_amount
-			# 		self.gross_pay += flt(self.earnings[i].amount, earning.precision("amount"))
-			# self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
-
 		else:
 			self.total_working_hours = 0
 			self.custom_regular_working_hours = 0
@@ -2134,12 +2112,16 @@ class SalarySlip(TransactionBase):
 		salary_component = frappe.db.get_value(
 			"Salary Structure", {"name": self.salary_structure}, "salary_component", cache=True
 		)
+		self.net_pay = 0
 		if self.earnings:
 			for i, earning in enumerate(self.earnings):
 				if earning.salary_component == salary_component:
 					self.earnings[i].amount += wages_amount
 				self.gross_pay += flt(self.earnings[i].amount, earning.precision("amount"))
-		self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
+				if earning.do_not_include_in_total == 0:
+					self.net_pay += flt(earning.amount, earning.precision("amount"))
+
+			self.net_pay = flt(self.net_pay) - flt(self.total_deduction)
 
 	def compute_year_to_date(self):
 		year_to_date = 0
