@@ -146,7 +146,6 @@ class SalarySlip(TransactionBase):
 			self.custom_regular_working_hours = 0
 			self.custom_overtime_hours = 0
 			self.custom_previous_overtime_hours = 0
-   
 
 	def validate(self):
 		# CUSTOMIZATION
@@ -2126,7 +2125,7 @@ class SalarySlip(TransactionBase):
 			self.custom_previous_overtime_hours = 0
 			self.custom_overtime_hours = 0
 			self.custom_holiday_overtime_hours = 0
-			
+
 			self.calculate_total_for_salary_slip()
 
 	def calculate_total_for_salary_slip(self):
