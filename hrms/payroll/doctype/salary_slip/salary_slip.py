@@ -2047,7 +2047,7 @@ class SalarySlip(TransactionBase):
 		for i, earning in enumerate(self.earnings):
 			if earning.salary_component == salary_structure_.salary_component:
 				self.earnings[i].amount = 0
-		if self.timesheets:
+		if len(self.timesheets) > 0:
 			self.total_working_hours = 0
 			for timesheet in self.timesheets:
 				if timesheet.working_hours:
@@ -2603,12 +2603,14 @@ def get_overtime_summary(employee_name, timesheets):
 
 	query_params = {"employee_name_": employee_name, "allowed_timesheets": allowed_timesheets}
 	frappe.log_error("query_str", query_str)
+	frappe.log_error("query_params", query_params)
 	query_res = frappe.db.sql(query_str, query_params, as_dict=True)
+	frappe.log_error("query_res", query_res)
 
 	if query_res:
 		return query_res[0]
 
-	return {}
+	return frappe._dict({})
 
 
 def get_salary_structure_summary(salary_structure):
